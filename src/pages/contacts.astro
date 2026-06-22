@@ -1,0 +1,576 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import committeeData from '../data/committee.json';
+import { normaliseImagePath } from '../lib/image-path';
+
+// Committee data, single source of truth - edited via the CMS at
+// /admin → Site settings → Committee.
+//
+// `email` is used SERVER-SIDE ONLY when the user submits the contact form.
+// Netlify Forms processes the submission and dispatches to the right inbox
+// without ever exposing the address in the rendered HTML. Visitors only see
+// names + roles; the email address never appears on the page.
+const committee = committeeData.members.map(p => ({
+  ...p,
+  photo: normaliseImagePath(p.photo) ?? null,
+}));
+
+// Build a list for the recipient dropdown, showing names + first role only.
+const recipientOptions = committee.map(p => ({
+  value: p.name,
+  label: `${p.name} (${p.roles[0]})`,
+}));
+
+const initials = (name: string) => name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+---
+<Layout
+  title="Contacts, Cornwall Orienteering Club"
+  description="Get in touch with the KERNO committee, chair, secretary, treasurer, events, membership and more."
+>
+
+<main id="main">
+
+  <PageHero
+    page="contacts"
+    eyebrow="Contacts"
+    heading="Who does what at KERNO."
+    lede="KERNO is run entirely by volunteers, every committee member below is doing this in their spare time. Pick the right person for your question and they'll get back to you when they can."
+  />
+
+  <section class="contact-club">
+    <div class="contact-club-wrap">
+      <p class="eyebrow">Get in touch</p>
+      <h2>Reach the committee.</h2>
+      <p>Use the form below to send a message to a specific committee member, or pick the right person from the cards underneath. Messages go straight to that person, no email addresses are shown publicly.</p>
+      <ul class="club-channels">
+        <li>
+          <a href="#contact-form" class="club-channel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="1.5"></rect>
+              <polyline points="3,7 12,13 21,7"></polyline>
+            </svg>
+            <span><strong>Send a message</strong><br>Use the form below</span>
+          </a>
+        </li>
+        <li>
+          <a href="https://www.facebook.com/Cornwallorienteering/" rel="noopener" class="club-channel">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 22v-8h3l1-4h-4V7.5c0-1.2.4-2 2-2h2V2h-3c-2.8 0-4.5 1.6-4.5 4.5V10H6v4h3.5v8H13z"></path></svg>
+            <span><strong>Facebook</strong><br>@Cornwallorienteering</span>
+          </a>
+        </li>
+        <li>
+          <a href="https://www.flickr.com/people/cornwallorienteering/" rel="noopener" class="club-channel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="4"></rect>
+              <circle cx="12" cy="12" r="4"></circle>
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle>
+            </svg>
+            <span><strong>Flickr</strong><br>cornwallorienteering</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="contacts-section">
+    <div class="contacts-wrap">
+      <ul class="contacts-grid">
+        {committee.map(person => (
+          <li class="contact-card">
+            <div class="contact-photo">
+              {person.photo ? (
+                <img src={person.photo} alt={`Photo of ${person.name}`} loading="lazy">
+              ) : (
+                <span class="contact-initials" aria-hidden="true">{initials(person.name)}</span>
+              )}
+            </div>
+            <div class="contact-body">
+              <h2>{person.name}</h2>
+              <ul class="contact-roles">
+                {person.roles.map(role => <li>{role}</li>)}
+              </ul>
+              <button
+                type="button"
+                class="contact-button"
+                data-contact-recipient={person.name}>
+                Send {person.name.split(' ')[0]} a message →
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Contact form
+       Submits to Netlify Forms. The recipient dropdown determines who the
+       email goes to, but the actual email addresses are configured in the
+       Netlify dashboard, never appear in the rendered HTML. -->
+  <section id="contact-form" class="contact-form-section">
+    <div class="contact-form-wrap">
+      <p class="eyebrow">Send a message</p>
+      <h2>We'll get back to you.</h2>
+      <p class="contact-intro">Pick who you'd like to reach below. The message goes straight to that person, no email addresses are visible on the public site.</p>
+
+      <form
+        name="committee-contact"
+        method="POST"
+        data-netlify="true"
+        netlify-honeypot="bot-field"
+        action="/contacts?sent=1"
+        class="contact-form">
+        <input type="hidden" name="form-name" value="committee-contact">
+        <p hidden><label>Don't fill this out: <input name="bot-field"></label></p>
+
+        <div class="field">
+          <label for="cf-recipient">Who would you like to contact?</label>
+          <select id="cf-recipient" name="recipient" required>
+            {recipientOptions.map(r => (
+              <option value={r.value}>{r.label}</option>
+            ))}
+            <option value="General enquiry">General enquiry, any committee member</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="cf-name">Your name</label>
+            <input id="cf-name" name="name" type="text" required>
+          </div>
+          <div class="field">
+            <label for="cf-email">Your email</label>
+            <input id="cf-email" name="email" type="email" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="cf-subject">Subject</label>
+          <input id="cf-subject" name="subject" type="text" required placeholder="e.g. Question about Saturday's event">
+        </div>
+
+        <div class="field">
+          <label for="cf-message">Message</label>
+          <textarea id="cf-message" name="message" required rows="6"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Send message →</button>
+
+        <p class="contact-form-success" id="cf-success" hidden>
+          Thanks, your message has been sent. Someone will reply within a few days.
+        </p>
+        <p class="contact-form-error" id="cf-error" hidden>
+          Sorry, there was a problem sending your message. Please try again, or email <a href="mailto:info@cornwallorienteering.org.uk">info@cornwallorienteering.org.uk</a> directly.
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <section class="info-block alt">
+    <div class="info-wrap">
+      <p class="eyebrow">Tips</p>
+      <h2>Picking the right person.</h2>
+      <p>For event-day enquiries close to a fixture, the listed event organiser on the relevant <a href="/events">event page</a> is your fastest route.</p>
+      <p>Membership-specific questions go to <strong>Emma Taylor</strong>. Press, photography, or social-media requests go to <strong>Kay Hawke</strong>. Anything else, the Secretary <strong>Andy Ellis</strong> or the general club inbox above will reach the right person.</p>
+    </div>
+  </section>
+
+</main>
+
+<script is:inline>
+  // Per-person "Send a message" buttons pre-fill the recipient dropdown then
+  // scroll to the form. No page reload, no email exposure.
+  document.querySelectorAll('[data-contact-recipient]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var name = btn.getAttribute('data-contact-recipient');
+      var select = document.getElementById('cf-recipient');
+      if (select && name) {
+        for (var i = 0; i < select.options.length; i++) {
+          if (select.options[i].value === name) { select.selectedIndex = i; break; }
+        }
+      }
+      var form = document.getElementById('contact-form');
+      if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var nameField = document.getElementById('cf-name');
+      if (nameField) setTimeout(function () { nameField.focus(); }, 400);
+    });
+  });
+
+  // Show a confirmation note when ?sent=1 is in the URL (Netlify redirects
+  // here after a successful submission).
+  if (location.search.indexOf('sent=1') !== -1) {
+    var note = document.getElementById('cf-success');
+    if (note) {
+      note.removeAttribute('hidden');
+      note.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // Submit the form directly to the email function instead of going through
+  // Netlify Forms' webhook (which silently disables itself on repeated
+  // failures). Netlify still captures the submission for the dashboard
+  // archive - we just no longer rely on Netlify firing the trigger.
+  var cf = document.querySelector('form[name="committee-contact"]');
+  if (cf) {
+    cf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(cf);
+      var btn = cf.querySelector('button[type="submit"]');
+      var successEl = document.getElementById('cf-success');
+      var errorEl   = document.getElementById('cf-error');
+      if (errorEl) errorEl.setAttribute('hidden', '');
+
+      if (fd.get('bot-field')) {
+        // Honeypot tripped - show success to keep the bot quiet, but send nothing.
+        cf.setAttribute('hidden', '');
+        if (successEl) successEl.removeAttribute('hidden');
+        return;
+      }
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+      var payload = {
+        form_name: 'committee-contact',
+        data: {
+          recipient: fd.get('recipient') || '',
+          name:      fd.get('name')      || '',
+          email:     fd.get('email')     || '',
+          subject:   fd.get('subject')   || '',
+          message:   fd.get('message')   || '',
+        },
+      };
+
+      fetch('/.netlify/functions/submission-created', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          cf.setAttribute('hidden', '');
+          if (successEl) {
+            successEl.removeAttribute('hidden');
+            successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        })
+        .catch(function () {
+          if (btn) { btn.disabled = false; btn.textContent = 'Send message →'; }
+          if (errorEl) errorEl.removeAttribute('hidden');
+        });
+    });
+  }
+</script>
+
+</Layout>
+
+<style>
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  /* Contact the club, sits between the page hero and the committee grid */
+  .contact-club {
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(32px, 4vw, 56px) var(--pad-x);
+  }
+  .contact-club-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  .contact-club .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 14px;
+  }
+  .contact-club .eyebrow::before { background: var(--plum); }
+  .contact-club h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(24px, 2.6vw, 32px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    margin: 0 0 12px 0;
+    color: var(--ink);
+  }
+  .contact-club > .contact-club-wrap > p {
+    font-size: 16px;
+    color: var(--ink-soft);
+    margin: 0 0 24px 0;
+    max-width: 60ch;
+  }
+  .contact-club .club-email {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 2px;
+    font-weight: 500;
+  }
+  .contact-club .club-email:hover { color: var(--plum); }
+
+  .club-channels {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .club-channel {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--paper-2);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .club-channel:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    transform: translateY(-2px);
+    color: var(--ink);
+  }
+  .club-channel svg { width: 22px; height: 22px; flex: 0 0 22px; color: var(--navy); }
+  .club-channel:hover svg { color: var(--ink); }
+  .club-channel strong { font-weight: 500; display: block; font-size: 14px; }
+  .club-channel span { font-family: var(--ff-mono); font-size: 12px; line-height: 1.4; color: var(--ink-soft); }
+  .club-channel:hover span { color: var(--ink); }
+
+  .contacts-section { padding: clamp(40px, 5vw, 64px) var(--pad-x); }
+  .contacts-wrap { max-width: var(--max-w); margin: 0 auto; }
+
+  .contacts-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+  }
+  .contact-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+    transition: transform .22s ease, box-shadow .22s ease;
+  }
+  .contact-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.4);
+    border-color: var(--rule-2);
+  }
+  .contact-photo {
+    aspect-ratio: 1 / 1;
+    background: var(--paper-2);
+    overflow: hidden;
+    border-bottom: 1px solid var(--rule);
+    display: grid; place-items: center;
+  }
+  .contact-photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    /* Anchor the crop to the top of the portrait so heads aren't sliced
+       when the source photo isn't tightly composed. Andy reported a few
+       portraits with the top of the head cut off - this fixes that for
+       every committee photo without needing to re-upload them. */
+    object-position: center top;
+    display: block;
+  }
+  .contact-initials {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 56px;
+    color: var(--gold-muted);
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    letter-spacing: -0.02em;
+  }
+  .contact-body {
+    padding: 18px 20px 20px;
+    display: flex; flex-direction: column;
+    gap: 12px;
+    flex-grow: 1;
+  }
+  .contact-body h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 21px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0;
+    color: var(--ink);
+  }
+  .contact-roles {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .contact-roles li {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    padding: 3px 8px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+  }
+  .contact-button {
+    margin-top: auto;
+    align-self: flex-start;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--ink);
+    padding: 0 0 2px 0;
+    cursor: pointer;
+    transition: color .18s, border-color .18s;
+  }
+  .contact-button:hover { color: var(--plum); border-color: var(--plum); }
+
+  /* ── Contact form */
+  .contact-form-section {
+    background: var(--paper);
+    padding: clamp(40px, 5vw, 72px) var(--pad-x);
+    border-top: 1px solid var(--rule);
+  }
+  .contact-form-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .contact-form-section .eyebrow { color: var(--plum); margin-bottom: 14px; }
+  .contact-form-section h2 {
+    font-family: var(--ff-display);
+    font-weight: 600;
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0 0 14px 0;
+  }
+  .contact-intro {
+    color: var(--ink-soft);
+    margin: 0 0 28px 0;
+  }
+  .contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .contact-form .field { display: flex; flex-direction: column; gap: 6px; }
+  .contact-form label {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .contact-form input,
+  .contact-form select,
+  .contact-form textarea {
+    font-family: var(--ff-body);
+    font-size: 16px;
+    color: var(--ink);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-2);
+    padding: 12px 14px;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .contact-form input:focus,
+  .contact-form select:focus,
+  .contact-form textarea:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: -1px;
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 600px) {
+    .field-row { grid-template-columns: 1fr; }
+  }
+  .contact-form .btn-primary {
+    align-self: flex-start;
+    background: var(--gold);
+    color: var(--ink);
+    font-weight: 500;
+    padding: 14px 26px;
+    border: 0;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+  }
+  .contact-form .btn-primary:hover {
+    background: var(--ink);
+    color: var(--gold);
+  }
+  .contact-form-success {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid var(--success-border);
+    padding: 12px 16px;
+    border-radius: 0;
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .info-block { padding: clamp(48px, 5vw, 80px) var(--pad-x); }
+  .info-block.alt { background: var(--paper-2); }
+  .info-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .info-block .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .info-block .eyebrow::before { background: var(--plum); }
+  .info-block h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 18px 0;
+  }
+  .info-block p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    max-width: 70ch;
+    margin: 0 0 14px 0;
+  }
+  .info-block strong { color: var(--ink); font-weight: 500; }
+  .info-block a { color: var(--navy); text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+  .info-block a:hover { color: var(--plum); }
+</style>

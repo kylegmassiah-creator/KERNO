@@ -1,0 +1,43 @@
+{
+  "_comment": "Hero photo for each page. Edited by the committee via the CMS at /admin → Site settings → Page hero photos. Leave 'image' empty to use the plain text-only hero (no backdrop). Paths should start with /assets/uploads/ (no 'public/' prefix - that's the disk path, not the URL).",
+  "newcomers": {
+    "image": "",
+    "alt": ""
+  },
+  "information": {
+    "image": "",
+    "alt": ""
+  },
+  "about": {
+    "image": "",
+    "alt": ""
+  },
+  "contacts": {
+    "image": "",
+    "alt": ""
+  },
+  "news": {
+    "image": "",
+    "alt": ""
+  },
+  "membership": {
+    "image": "",
+    "alt": ""
+  },
+  "maps": {
+    "image": "",
+    "alt": ""
+  },
+  "events": {
+    "image": "",
+    "alt": ""
+  },
+  "training": {
+    "image": "",
+    "alt": ""
+  },
+  "home": {
+    "image": "/assets/hero-photo1.jpg",
+    "alt": "Cornwall Orienteering Club runners in club kit racing up from a slipway during an event"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "_comment": "Text content for the /membership page. Edited via the CMS at /admin → Site settings → Membership page text. Body fields support markdown (links, bold, italics, paragraphs).",
+  "hero": {
+    "eyebrow": "Membership",
+    "heading": "Join the club, support the sport.",
+    "lede": "If you plan to orienteer more than a couple of times a year, joining KERNO is a small annual cost that gets you insured, ranked, discounted at events, and contributing to the sport's future.",
+    "primaryCtaLabel": "Join KERNO online",
+    "primaryCtaUrl": "https://www.britishorienteering.org.uk/join_online?ms_club_id=78&ms_assoc_id=5",
+    "secondaryCtaLabel": "What you get",
+    "secondaryCtaUrl": "#what-you-get"
+  },
+  "whatYouGet": {
+    "eyebrow": "What you get",
+    "heading": "Insurance, lower fees, ranking points, and a voice in the club.",
+    "benefits": [
+      {
+        "title": "British Orienteering insurance",
+        "body": "Public liability insurance covers you at every BO-affiliated event. From January 2026, non-members are no longer covered, you take part at your own risk and are personally liable for accidents to others or property damage. Membership solves this."
+      },
+      {
+        "title": "Discounted entry",
+        "body": "Members pay a few pounds less per event than non-members at most fixtures, including all KERNO events and most regional and national fixtures."
+      },
+      {
+        "title": "Ranking points",
+        "body": "Your results count toward the British Orienteering ranking system and the regional NWOA league. You also become eligible for age-class trophies and the club's own awards."
+      },
+      {
+        "title": "Newsletter and events priority",
+        "body": "Three or four newsletters a year with race reports, route reviews, and what's coming up. Members also get priority on capacity-limited events."
+      },
+      {
+        "title": "Training and coaching",
+        "body": "Members-only training sessions on map-reading, pace judgement, route choice, and night orienteering. Coaching support for juniors aiming at JK, JEC and EYOC selection."
+      },
+      {
+        "title": "A voice in the club",
+        "body": "Members can vote at the AGM, stand for committee, propose events, and shape what KERNO does next."
+      }
+    ]
+  },
+  "threeMemberships": {
+    "eyebrow": "Three memberships, one payment",
+    "heading": "KERNO, NWOA and British Orienteering, all included.",
+    "body": "When you join KERNO, you automatically become a member of the South West Orienteering Association and British Orienteering. One annual fee, paid through the British Orienteering join form, covers all three. Senior, Junior and Family rates are shown when you start the application.",
+    "note": "Membership runs to 31 December, joining mid-year still gets you full benefits to year-end. Most members renew automatically each January."
+  },
+  "howToJoin": {
+    "eyebrow": "How to join",
+    "heading": "Two minutes online.",
+    "steps": [
+      "**Click the join link.** It takes you to the British Orienteering join form with KERNO already selected as your club.",
+      "**Choose your membership type** (Senior, Junior, or Family) and fill in your details.",
+      "**Pay by card.** Membership runs to 31 December, joining mid-year still gets you full benefits to year-end.",
+      "**You're in.** A confirmation email arrives within a few minutes; we'll add you to the newsletter and members' WhatsApp group."
+    ],
+    "ctaLabel": "Start the join form",
+    "ctaUrl": "https://www.britishorienteering.org.uk/join_online?ms_club_id=78&ms_assoc_id=5",
+    "contactNote": "Questions about membership? Get in touch with the Membership Secretary, [Emma Taylor](/contacts), via the contacts page."
+  }
+}

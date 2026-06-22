@@ -1,0 +1,113 @@
+---
+// Renders the file attachments (PDFs, Word docs, spreadsheets, etc.)
+// for any page that has them. Used by news articles and info pages.
+//
+// Each attachment is a labelled link to a file uploaded via the CMS.
+// File-type label sits in a small mono-cased tag at the start of each
+// row, like the Latest Results files on the homepage.
+
+export interface Attachment {
+  label: string;
+  file: string;
+  type?: 'pdf' | 'docx' | 'xlsx' | 'csv' | 'image' | 'other';
+}
+
+export interface Props {
+  attachments: Attachment[];
+  /** Heading text. Defaults to "Downloads". */
+  heading?: string;
+}
+
+const { attachments, heading = 'Downloads' } = Astro.props;
+
+const tagFor = (t?: string) => {
+  switch (t) {
+    case 'pdf':   return 'PDF';
+    case 'docx':  return 'Word';
+    case 'xlsx':  return 'Excel';
+    case 'csv':   return 'CSV';
+    case 'image': return 'Image';
+    default:      return 'File';
+  }
+};
+---
+{attachments && attachments.length > 0 && (
+  <aside class="attachments" aria-label={heading}>
+    <p class="attachments-heading">{heading}</p>
+    <ul class="attachments-list">
+      {attachments.map(a => (
+        <li>
+          <a href={a.file} rel="noopener" target="_blank">
+            <span class="attachments-tag" data-type={a.type ?? 'other'}>{tagFor(a.type)}</span>
+            <span class="attachments-label">{a.label}</span>
+            <span aria-hidden="true" class="attachments-arrow">→</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </aside>
+)}
+
+<style is:global>
+  .attachments {
+    margin: 32px 0 8px 0;
+    padding: 20px 22px 18px;
+    background: var(--paper-2);
+    border-left: 3px solid var(--plum);
+  }
+  .attachments-heading {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 12px 0;
+  }
+  .attachments-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .attachments-list a {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    font-size: 14px;
+    text-decoration: none;
+    transition: background .18s ease, border-color .18s ease;
+  }
+  .attachments-list a:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--ink);
+  }
+  .attachments-tag {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .attachments-list a:hover .attachments-tag {
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .attachments-label { font-weight: 500; }
+  .attachments-arrow {
+    font-family: var(--ff-display);
+    color: var(--ink-mute);
+  }
+  .attachments-list a:hover .attachments-arrow { color: var(--ink); }
+</style>

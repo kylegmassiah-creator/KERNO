@@ -1,0 +1,2069 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+export interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+  /** Optional ISO timestamp for og:article:published_time / Schema.org dates */
+  publishedTime?: string;
+  /** Add `noindex,follow` for unpublished or draft pages */
+  noindex?: boolean;
+}
+
+const {
+  title = "Cornwall Orienteering Club - orienteering across Cornwall",
+  description = "A friendly orienteering club promoting orienteering across Cornwall since 1982. Events through the year. Newcomers always welcome.",
+  ogImage = "/assets/cornwall-logo.png",
+  ogType = "website",
+  publishedTime,
+  noindex = false,
+} = Astro.props;
+
+// Canonical URL, built from Astro.site (configured in astro.config.mjs) plus the current path.
+// Falls back gracefully in dev where Astro.site may be undefined.
+const siteUrl = Astro.site ?? new URL("https://cornwallorienteering.org.uk");
+const canonical = new URL(Astro.url.pathname, siteUrl).toString();
+const ogImageAbs = new URL(ogImage, siteUrl).toString();
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<meta name="theme-color" content="#141414">
+{noindex && <meta name="robots" content="noindex,follow">}
+<link rel="canonical" href={canonical}>
+
+<!-- Open Graph / Facebook / LinkedIn -->
+<meta property="og:type" content={ogType}>
+<meta property="og:site_name" content="Cornwall Orienteering Club">
+<meta property="og:locale" content="en_GB">
+<meta property="og:url" content={canonical}>
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+<meta property="og:image" content={ogImageAbs}>
+{publishedTime && <meta property="article:published_time" content={publishedTime}>}
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content={title}>
+<meta name="twitter:description" content={description}>
+<meta name="twitter:image" content={ogImageAbs}>
+
+<!-- Per-page injectables: JSON-LD, extra <link rel="alternate">, etc. -->
+<slot name="head" />
+
+<!-- Favicon: Cornwall Orienteering Club logo -->
+<link rel="icon" type="image/png" href="/assets/cornwall-logo.png">
+<link rel="apple-touch-icon" href="/assets/cornwall-logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+{/* Load Google Fonts CSS non-blocking: preload starts the fetch
+    immediately, then the stylesheet is applied via the media=print →
+    onload swap trick so it doesn't block first paint. display=swap
+    in the URL already makes fallback fonts render until web fonts
+    arrive. Estimated saving: ~300ms render-blocking time. */}
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,30..100;1,9..144,400..700,30..100&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,30..100;1,9..144,400..700,30..100&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,30..100;1,9..144,400..700,30..100&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"></noscript>
+
+<style is:global>
+/* ───────────────────────────── design tokens
+   Palette matches the Cornwall Orienteering Club logo, navy #141414, yellow #feb92a,
+   purple #8a6500, charcoal #161616. Supporting shades added for web layout. */
+:root {
+  --paper:    #faf8f3;   /* soft blue-grey page background */
+  --paper-2:  #f1ece2;   /* faint secondary surface */
+  --paper-3:  #e3dac9;
+  --ink:      #161616;   /* exact logo charcoal */
+  --ink-2:    #232323;
+  --ink-soft: rgba(29, 29, 27, 0.72);
+  --ink-mute: rgba(29, 29, 27, 0.62);  /* bumped from 0.48 → 0.62 so that
+                                          tertiary text (weekday labels,
+                                          counts, etc.) passes WCAG AA
+                                          contrast on the paper background. */
+  --rule:     rgba(29, 29, 27, 0.12);
+  --rule-2:   rgba(29, 29, 27, 0.22);
+
+  --navy:      #141414;  /* EXACT logo navy */
+  --navy-deep: #000000;  /* darker panels (footer, hero dark) */
+  --navy-soft: #3a3a3a;  /* lighter navy for accents/hover */
+
+  --gold:        #feb92a;  /* EXACT logo yellow */
+  --gold-dark:   #e0a015;  /* hover / pressed state */
+  --gold-muted:  #6e5407;  /* eyebrows / quieter labels on light backgrounds.
+                              Darkened from #c99b1a to ~5:1 contrast on --paper
+                              so it passes WCAG AA on body-text-sized labels. */
+  --gold-bright: #ffd874;  /* lighter tint for highlights */
+
+  --plum:      #8a6500;   /* EXACT logo purple */
+  --plum-soft: #b8901a;
+  --plum-deep: #6e5407;
+
+  --mist:      #bbb3a4;   /* tertiary cool neutral */
+
+  /* Status colours, used by announcement banners and form success notes */
+  --alert:     #b71c1c;   /* urgent / error */
+  --success-bg:     #d8efdd;
+  --success-text:   #0f3818;
+  --success-border: #6ab47a;
+
+  /* Display and body share the same IBM Plex Sans stack, by client request,
+     to avoid the serif fallback rendering as Times New Roman on networks
+     where Google Fonts is blocked. Headings carry weight via font-weight
+     600/700 in the .display class and individual heading selectors below. */
+  --ff-display: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ff-body:    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+                Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ff-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+                "Liberation Mono", monospace;
+
+  --max-w: 1360px;
+  --pad-x: clamp(20px, 4.5vw, 56px);
+  --pad-y: clamp(24px, 4vw, 48px);
+}
+
+/* ───────────────────────────── reset & base */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  font-family: var(--ff-body);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+}
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, h4, p, ul, ol, figure, dl, dd { margin: 0; padding: 0; }
+ul { list-style: none; }
+em { font-style: normal; } /* emphasis via colour, not italic */
+img, svg { display: block; max-width: 100%; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+/* skip link */
+.skip {
+  position: absolute; top: -100px; left: 16px; z-index: 100;
+  background: var(--ink); color: var(--paper); padding: 10px 14px;
+  font-family: var(--ff-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  transition: top .2s ease;
+}
+.skip:focus { top: 16px; }
+
+/* ───────────────────────────── typography utilities */
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 0;
+}
+.eyebrow::before {
+  /* Orienteering "Start" symbol - an outlined equilateral triangle,
+     pointing up. Inspired by the ISOM-2017 start-control map symbol.
+     We use a CSS mask (instead of inline SVG/image) so existing
+     per-section overrides that just set `background: var(--gold)` etc.
+     continue to recolour the triangle without having to rewrite each
+     rule with a new SVG. */
+  content: "";
+  width: 12px; height: 10px;
+  background: var(--plum);
+  display: inline-block;
+  flex: 0 0 auto;
+  -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolygon points='6,1 11.5,9 0.5,9' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='miter'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpolygon points='6,1 11.5,9 0.5,9' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='miter'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.display {
+  /* Sans-serif headings need more weight to read as "display", bumped from
+     400 (which suited Fraunces) to 600 (semibold) for IBM Plex Sans. */
+  font-family: var(--ff-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+.display em {
+  color: var(--plum);
+  font-weight: inherit;
+}
+.mono { font-family: var(--ff-mono); letter-spacing: 0.03em; }
+.small { font-size: 13px; color: var(--ink-soft); }
+
+/* ───────────────────────────── prose helpers (markdown body content)
+   These classes + tag styles let committee members highlight text and
+   float images inside any markdown body, events, news, info pages, etc.
+   Used via the CMS's "raw HTML" editor mode. */
+
+/* <mark>important text</mark> renders as a yellow highlight that picks
+   up the club gold without screaming. Also targeted via prose-container
+   selectors below in case scoped page styles ever try to undo it. */
+mark, mark *, .ev-prose mark, .article-prose mark, .info-prose mark, .map-prose mark, .news-prose mark {
+  background: var(--gold) !important;
+  color: var(--ink) !important;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* Named text-colour utility classes, committee can wrap text in a
+   <span> with one of these classes via the editor's source mode to
+   change a phrase's colour. Limited to the club palette so the site
+   stays visually consistent. Usage:
+     <span class="t-plum">important phrase</span>
+     <span class="t-navy">key date</span>
+     <span class="t-alert">EVENT CANCELLED</span> */
+.t-plum     { color: var(--plum); }
+.t-navy     { color: var(--navy); }
+.t-gold     { color: var(--gold-muted); }      /* slightly darker gold for legibility */
+.t-success  { color: var(--success-text); }
+.t-alert    { color: var(--alert); font-weight: 500; }
+.t-mute     { color: var(--ink-mute); }
+
+/* Float helpers for images embedded in the body. The committee can use
+   these via the CMS's HTML mode:
+     <img src="..." alt="..." class="float-right" />
+     <img src="..." alt="..." class="float-left" />
+     <img src="..." alt="..." class="full-width" />
+   The neighbouring text wraps around floated images so the layout reads
+   text-photo-text or photo-then-text without leaving an awkward gap.
+   On phones, floats collapse to centred full-width images. */
+img.float-right {
+  float: right;
+  max-width: min(50%, 360px);
+  margin: 4px 0 16px 24px;
+  height: auto;
+}
+img.float-left {
+  float: left;
+  max-width: min(50%, 360px);
+  margin: 4px 24px 16px 0;
+  height: auto;
+}
+img.full-width {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 18px 0;
+}
+@media (max-width: 600px) {
+  img.float-right, img.float-left {
+    float: none;
+    display: block;
+    max-width: 100%;
+    margin: 18px auto;
+  }
+}
+
+/* ───────────────────────────── header & nav (two-row) */
+.topbar {
+  position: relative; z-index: 5;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.topbar-brand {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 14px var(--pad-x) 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px;
+}
+.wordmark {
+  display: inline-flex; align-items: center; gap: 16px;
+  font-family: var(--ff-display);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 14, "SOFT" 20;
+}
+.wordmark .club-logo { width: 120px; height: 120px; flex: 0 0 120px; display: block; }
+@media (max-width: 820px) {
+  .wordmark .club-logo { width: 88px; height: 88px; flex: 0 0 88px; }
+}
+.wordmark small {
+  display: block;
+  font-family: var(--ff-mono);
+  font-size: 10px; font-weight: 400;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ink-soft); margin-top: 2px;
+}
+.topbar-utility {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--ff-mono);
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.topbar-utility a {
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: color .18s ease;
+}
+.topbar-utility a:hover { color: var(--plum); }
+.topbar-utility svg { width: 14px; height: 14px; }
+
+/* full-width nav row */
+.nav-row {
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+.nav-list {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 0 var(--pad-x);
+  display: flex; align-items: stretch;
+  gap: 0;
+}
+.nav-list a {
+  flex: 1 1 0;
+  padding: 14px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-align: center;
+  position: relative;
+  transition: color .18s ease, background .18s ease;
+  white-space: nowrap;
+}
+.nav-list a::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 2px; background: var(--gold);
+  transform-origin: center; transform: scaleX(0);
+  transition: transform .22s ease;
+}
+.nav-list a:hover { color: var(--navy); background: var(--paper-2); }
+.nav-list a:hover::after { transform: scaleX(1); }
+.nav-list a.current { color: var(--navy); }
+.nav-list a.current::after { transform: scaleX(1); background: var(--plum); }
+.nav-list a + a { border-left: 1px solid var(--rule); }
+.nav-list .search {
+  flex: 0 0 56px;
+  padding: 0;
+  display: grid; place-items: center;
+}
+.nav-list .search svg { width: 16px; height: 16px; }
+.nav-list .search:hover { background: var(--ink); color: var(--paper); }
+.nav-list .search::after { display: none; }
+
+.nav-toggle { display: none; }
+
+/* Tight viewports: smaller nav type so all 10 keep fitting */
+@media (max-width: 1100px) {
+  .nav-list a { font-size: 13px; padding: 12px 4px; letter-spacing: 0; }
+}
+
+/* Mobile: hamburger drawer */
+@media (max-width: 820px) {
+  .topbar-brand { padding: 12px 20px 10px; }
+  .topbar-utility { display: none; }
+  .nav-toggle {
+    display: grid; place-items: center;
+    width: 40px; height: 40px; border: 1px solid var(--rule-2);
+    background: transparent;
+  }
+  .nav-row { display: none; border-top: 0; }
+  .nav-row.open { display: block; border-top: 1px solid var(--rule); }
+  .nav-list { flex-direction: column; padding: 0; }
+  .nav-list a {
+    flex: 0 0 auto;
+    padding: 14px 20px;
+    text-align: left;
+    border-left: 0 !important;
+    border-bottom: 1px solid var(--rule);
+  }
+  .nav-list a::after { display: none; }
+  .nav-list a.current { background: var(--paper-2); color: var(--navy); }
+  .nav-list .search {
+    flex: 0 0 auto; padding: 14px 20px;
+    justify-content: flex-start; gap: 12px;
+  }
+  .nav-list .search::before {
+    content: "Search";
+    font-size: 14px; font-weight: 500; color: var(--ink);
+  }
+}
+
+/* ───────────────────────────── inner-page hero with optional photo backdrop
+   Used by the <PageHero> component on events, maps, newcomers, training, etc.
+   When the committee uploads a hero image via the CMS, the page automatically
+   gains a full-bleed photo behind the title. When the image is empty, the
+   page-hero stays text-only on paper-2. */
+.page-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.page-hero--photo {
+  color: var(--paper);
+  background: var(--navy-deep);
+}
+.page-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.page-hero-backdrop img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center 50%;
+  display: block;
+  filter: contrast(1.05) saturate(0.95);
+}
+/* Per-page object-position overrides for hero photos whose default
+   centre-crop cuts off the important content. Each page-hero <section>
+   carries a data-page attribute (see PageHero.astro). Add a new entry
+   here when a particular committee-uploaded photo needs a different
+   crop point - values like `center 30%` (favour top, e.g. landscape
+   with sky) or `center 70%` (favour bottom, e.g. group portrait where
+   front-row faces are at the bottom). */
+/* Contacts page hero: a group photo with people across the full width,
+   so it needs more vertical room than the standard inner-page hero to
+   avoid slicing the front-row faces or the people at the left/right
+   edges. Increase min-height (only on this page) and bias the crop
+   slightly left so the leftmost person stays in frame. */
+.page-hero[data-page="contacts"] {
+  min-height: clamp(420px, 50vw, 600px);
+  display: flex;
+  align-items: center;
+}
+.page-hero[data-page="contacts"] .page-hero-backdrop img {
+  /* Vertical anchor 35% - keeps front-row faces in view (they sit a
+     bit lower than centre in the frame). Horizontal 25% biases the
+     crop to the LEFT half of the image so the person at the left edge
+     isn't sliced when the viewport is narrower than the photo's
+     natural width. */
+  object-position: 25% 35%;
+}
+.page-hero--photo .page-hero-backdrop::after {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(125deg, rgba(0, 0, 0, 0.86) 0%, rgba(0, 0, 0, 0.7) 55%, rgba(20, 20, 20, 0.55) 100%);
+}
+/* Higher-specificity selectors (.page-hero.page-hero--photo … instead
+   of just .page-hero--photo …) so these rules win over the base
+   `.page-hero h1 { color: var(--ink) }` declared in PageHero.astro.
+   Without this, pages with a hero photo (Events, Maps, Information
+   etc.) kept dark heading text against the photo overlay. */
+.page-hero.page-hero--photo h1,
+.page-hero.page-hero--photo .page-lede {
+  color: var(--paper);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+/* Inline link inside a hero lede when the hero has a photo background.
+   Override the generic .page-lede a rule (defined further down) - on a
+   photo we want bright gold text + paper underline for high contrast,
+   rather than navy on cream. */
+.page-hero.page-hero--photo .page-lede a {
+  color: var(--gold-bright);
+  text-decoration: underline;
+  text-decoration-color: var(--paper);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  font-weight: 500;
+  transition: color .18s ease, text-decoration-color .18s ease;
+}
+.page-hero.page-hero--photo .page-lede a:hover,
+.page-hero.page-hero--photo .page-lede a:focus-visible {
+  color: var(--paper);
+  text-decoration-color: var(--gold-bright);
+}
+.page-hero.page-hero--photo .eyebrow { color: var(--gold-bright); }
+.page-hero.page-hero--photo .eyebrow::before { background: var(--gold); }
+.page-hero.page-hero--photo .anchor-nav,
+.page-hero.page-hero--photo .anchor-nav a {
+  color: var(--paper);
+}
+.page-hero.page-hero--photo .anchor-nav a {
+  border-bottom: 1px solid rgba(244, 237, 224, 0.4);
+}
+.page-hero.page-hero--photo .anchor-nav a:hover {
+  border-bottom-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+/* ───────────────────────────── homepage announcement banner */
+.announcement {
+  border-bottom: 1px solid var(--rule);
+}
+.announcement-wrap {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 14px var(--pad-x);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.announcement-tag {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  font-weight: 600;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  flex: 0 0 26px;
+  color: var(--ink);
+}
+.announcement-msg {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 500;
+  min-width: 200px;
+}
+.announcement-link {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  white-space: nowrap;
+  transition: color .18s, border-color .18s;
+}
+.announcement-link:hover { color: var(--plum); border-color: var(--plum); }
+
+.announcement-info    { background: var(--gold); }
+.announcement-info    .announcement-tag { background: var(--ink); color: var(--gold); }
+.announcement-warning { background: var(--plum); color: var(--paper); }
+.announcement-warning .announcement-msg { color: var(--paper); }
+.announcement-warning .announcement-link { color: var(--paper); border-color: var(--paper); }
+.announcement-warning .announcement-tag { background: var(--paper); color: var(--plum); }
+.announcement-urgent  { background: var(--alert); color: var(--paper); }
+.announcement-urgent  .announcement-msg { color: var(--paper); }
+.announcement-urgent  .announcement-link { color: var(--paper); border-color: var(--paper); }
+.announcement-urgent  .announcement-tag { background: var(--paper); color: var(--alert); }
+
+/* ───────────────────────────── HERO */
+.hero {
+  position: relative;
+  isolation: isolate;
+  color: var(--paper);
+  /* Filler backdrop so the (light) hero text stays legible even when no hero
+     photo is set. When a photo IS set, .hero-backdrop (with its own scrim)
+     layers on top of this and hides it - so this also acts as a graceful
+     fallback if a hero image ever fails to load. Mirrors the photo scrim:
+     near-black on the left under the headline, warming to club gold on the
+     right. */
+  background:
+    linear-gradient(125deg,
+      #141414 0%,
+      #141414 45%,
+      #6e5407 82%,
+      #8a6500 100%);
+}
+.hero-wrap {
+  position: relative;
+  max-width: var(--max-w); margin: 0 auto;
+  padding: clamp(40px, 5vw, 72px) var(--pad-x) clamp(40px, 5vw, 72px);
+  display: grid;
+  grid-template-columns: 1.2fr 0.85fr;
+  gap: clamp(28px, 4vw, 56px);
+  align-items: stretch;
+}
+.hero-backdrop {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+.hero-backdrop img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+  display: block;
+  filter: brightness(1.1) contrast(1.02) saturate(1);
+}
+.hero-backdrop::after {
+  content: "";
+  position: absolute; inset: 0;
+  /* Dark only behind the text column on the left, fading to mostly clear on
+     the right so the photo reads. A touch of club gold warms the far edge.
+     Keeps the white headline + lede legible without burying the image. */
+  background:
+    linear-gradient(100deg,
+      rgba(0, 0, 0, 0.80) 0%,
+      rgba(0, 0, 0, 0.64) 36%,
+      rgba(0, 0, 0, 0.30) 62%,
+      rgba(138, 101, 0, 0.16) 100%);
+}
+.contour-bg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0.12;
+  color: var(--gold);
+  z-index: 0;
+}
+
+.hero-intro {
+  position: relative;
+  display: flex; flex-direction: column;
+  padding: 8px 0;
+  min-width: 0;
+  color: var(--paper);
+}
+.hero-intro .eyebrow {
+  margin-bottom: 16px;
+  color: var(--gold);
+}
+.hero-intro .eyebrow::before { background: var(--gold); }
+.hero-intro h1 {
+  /* Body font (IBM Plex Sans) instead of Fraunces, by client request, so
+     this matches the lede paragraph and renders consistently on networks
+     that block Google Fonts. */
+  font-family: var(--ff-body);
+  font-weight: 600;
+  font-size: clamp(38px, 5.5vw, 72px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin: 0 0 22px 0;
+  color: var(--paper);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.hero-intro h1 em {
+  color: var(--gold);
+}
+.hero-intro .lede {
+  font-size: clamp(16px, 1.3vw, 18px);
+  line-height: 1.55;
+  color: rgba(240, 243, 247, 0.82);
+  max-width: 48ch;
+  margin-bottom: 28px;
+}
+.lede-link {
+  color: var(--gold);
+  font-weight: 500;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(254, 185, 42, 0.45);
+  padding-bottom: 2px;
+  transition: border-color .2s ease, color .2s ease;
+}
+.lede-link:hover { color: var(--gold-bright); border-bottom-color: var(--gold-bright); }
+.hero-cta {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  /* Reduced from 44px so the Next Event band sits closer underneath. */
+  margin-bottom: 22px;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 22px;
+  font-family: var(--ff-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  transition: transform .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+  will-change: transform;
+  cursor: pointer;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 rgba(12, 31, 58, 0.12);
+}
+.btn-primary:hover { background: var(--gold-dark); color: var(--paper); box-shadow: none; }
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.btn-ghost:hover { background: var(--ink); color: var(--paper); }
+.hero .btn-ghost {
+  color: var(--paper);
+  border-color: var(--paper);
+}
+.hero .btn-ghost:hover { background: var(--paper); color: var(--ink); }
+.btn-full { width: 100%; justify-content: center; }
+.btn .arrow { font-family: var(--ff-mono); font-size: 16px; }
+
+.hero-stats {
+  margin-top: auto;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;
+  /* Trimmed top spacing so the stats row hugs closer to the CTA buttons,
+     reducing total hero height. */
+  padding-top: 16px;
+  border-top: 1px solid rgba(240, 243, 247, 0.22);
+  max-width: 480px;
+}
+.hero-stats > div { display: flex; flex-direction: column; gap: 6px; }
+.hero-stats dt {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(240, 243, 247, 0.58);
+}
+.hero-stats dd {
+  font-family: var(--ff-display);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 30;
+  color: var(--paper);
+}
+
+/* Right-hand column of the hero, stacks Next Event + Latest Results
+   so both pieces of "what's happening now" information sit prominently
+   in the hero rather than in separate page bands. */
+.hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-self: start;
+}
+
+/* Latest results card inside the hero. Same navy/gold colour scheme as
+   the original standalone Latest Results band, navy background, paper
+   text, gold accents, gold-bright eyebrow. */
+.hero-latest {
+  position: relative;
+  background: var(--navy-deep);
+  color: var(--paper);
+  padding: 22px 24px 20px;
+  border-top: 4px solid var(--gold);
+  overflow: hidden;
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+}
+.hero-latest .eyebrow {
+  color: var(--gold-bright);
+  margin-bottom: 10px;
+}
+.hero-latest .eyebrow::before { background: var(--gold-bright); }
+.hero-latest-when {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 224, 0.75);
+  margin: 0 0 6px 0;
+}
+.hero-latest h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: clamp(20px, 1.8vw, 24px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--paper);
+  margin: 0 0 14px 0;
+}
+.hero-latest-files {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hero-latest-files a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(244, 237, 224, 0.08);
+  color: var(--paper);
+  font-size: 13px;
+  border-left: 2px solid transparent;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.hero-latest-files a:hover {
+  background: var(--gold);
+  color: var(--ink);
+  border-color: var(--gold);
+}
+.hero-latest-tag {
+  font-family: var(--ff-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: var(--ink);
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+.hero-latest-files a:hover .hero-latest-tag {
+  background: var(--ink);
+  color: var(--gold);
+}
+.hero-latest-label {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.hero-latest-link {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  border-bottom: 1px solid var(--gold-bright);
+  padding-bottom: 1px;
+  display: inline-block;
+  transition: color .18s, border-color .18s;
+}
+.hero-latest-link:hover {
+  color: var(--paper);
+  border-color: var(--paper);
+}
+
+/* next event panel, compact teaser on a paper card.
+   align-self: stretch so the card fills the full width of .hero-side,
+   matching the Latest Results card sitting below it. */
+.next-event {
+  position: relative;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 22px 24px 20px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+  align-self: stretch;
+}
+.next-event::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--plum);
+}
+/* Decorative corner triangle removed, was reading as the card being
+   "cut off". Both hero cards now sit as clean rectangles with matching
+   dimensions, distinguished by their border-top accent colour. */
+.next-event .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+.next-event .eyebrow::before { background: var(--plum); }
+.next-event .event-when {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.next-event h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 20;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+.next-event .event-where {
+  font-size: 14px;
+  color: var(--ink-soft);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+.next-event .event-terms {
+  display: flex; flex-wrap: wrap; gap: 10px 16px;
+  margin-bottom: 18px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.next-event .event-terms span { position: relative; z-index: 1; }
+.next-event .btn-primary {
+  background: var(--gold);
+  color: var(--ink);
+  border-color: var(--gold);
+  position: relative; z-index: 1;
+  margin-top: auto;
+}
+.next-event .btn-primary:hover {
+  background: var(--gold-bright);
+  color: var(--ink);
+  box-shadow: none;
+}
+/* Quiet "Entries closed" badge shown once the event's entryCloseDate
+   has passed. Replaces the prominent gold Enter button so visitors
+   aren't bounced to an already-closed SIEntries page. Tucked above
+   the secondary "Event details" link so the card still has a clear
+   call-to-action even after entries have closed. */
+.next-event .entries-closed-badge {
+  display: inline-block;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--plum);
+  background: rgba(138, 101, 0, 0.08);
+  border: 1px solid rgba(138, 101, 0, 0.25);
+  padding: 6px 10px;
+  margin: 0 0 12px 0;
+  align-self: flex-start;
+  position: relative; z-index: 1;
+}
+/* "Event details" link shown beneath the "Entries closed" badge on the
+   homepage next-event card. Uses dedicated class (not .btn-ghost) because
+   .hero .btn-ghost defaults to paper-colour text - which is invisible
+   against the paper-coloured card background until hover. This styling
+   keeps the link always visible with ink-coloured text and a clear
+   underline, sitting quietly below the badge without competing with it. */
+.next-event .next-event-details-link {
+  position: relative; z-index: 1;
+  margin-top: auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  transition: color .18s, border-bottom-color .18s;
+}
+.next-event .next-event-details-link:hover,
+.next-event .next-event-details-link:focus-visible {
+  color: var(--plum);
+  border-bottom-color: var(--plum);
+}
+.next-event .next-event-details-link .arrow {
+  font-family: var(--ff-mono);
+  font-size: 14px;
+}
+
+/* ───────────────────────────── contour divider */
+.contour-divider {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: 0 var(--pad-x);
+  display: flex; align-items: center; gap: 20px;
+  height: 40px;
+}
+.contour-divider svg { flex: 1 1 auto; height: 22px; color: var(--gold-muted); }
+.contour-divider .coord {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  white-space: nowrap;
+}
+
+/* ───────────────────────────── upcoming events row */
+.upcoming {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: clamp(20px, 3vw, 40px) var(--pad-x) clamp(32px, 4vw, 56px);
+}
+/* The "Also coming up" eyebrow on the homepage uses magenta instead of
+   the default gold-muted, to carry the brand colour through the section. */
+.upcoming .eyebrow { color: var(--plum); }
+.sec-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 24px; gap: 16px;
+}
+.sec-head .sec-link {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--navy);
+  border-bottom: 1px solid var(--navy);
+  padding-bottom: 2px;
+  transition: color .2s, border-color .2s;
+}
+.sec-head .sec-link:hover { color: var(--plum); border-color: var(--plum); }
+.event-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-top: 2px solid var(--navy);
+  border-bottom: 2px solid var(--plum);
+}
+.ev-card {
+  padding: 22px 22px 26px;
+  border-right: 1px solid var(--rule);
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+  transition: background .2s ease;
+  min-height: 160px;
+}
+.ev-card:last-child { border-right: 0; }
+.ev-card {
+  /* Permanent plum top stripe, gives every upcoming event card a club
+     accent and visually flags it as a separate clickable thing without
+     the heaviness of a full border. */
+  border-top: 4px solid var(--plum);
+  transition: background .2s ease;
+}
+.ev-card:hover { background: var(--paper-2); }
+.ev-card time {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  margin-bottom: 8px;
+}
+.ev-card h3 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 30;
+  margin-bottom: 4px;
+}
+.ev-card .ev-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.ev-card .level {
+  margin-top: auto;
+  align-self: flex-start;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+}
+.level-local { color: var(--ink-soft); border-color: var(--rule-2); }
+.level-regional { color: var(--plum); }
+.level-national { color: var(--gold); }
+.ev-card .arrow-mono {
+  position: absolute; top: 22px; right: 22px;
+  font-family: var(--ff-mono);
+  opacity: 0;
+  transition: opacity .2s ease, transform .2s ease;
+  transform: translateX(-4px);
+}
+.ev-card:hover .arrow-mono { opacity: 1; transform: translateX(0); color: var(--gold); }
+
+/* ───────────────────────────── next event band (homepage)
+   Mirrors the latest-results band dimensions exactly so the two sit
+   together as a matched pair. Paper background + plum accent
+   distinguish it from the navy + gold Latest Results band. */
+.next-event-band {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  /* Tightened top padding so the band sits closer to the hero text and
+     stays above the fold on a 1366×768 laptop. */
+  padding: clamp(12px, 1.5vw, 24px) var(--pad-x) clamp(14px, 2vw, 28px);
+}
+.ne-band-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--plum);
+  color: var(--paper);
+  border-top: 4px solid var(--gold);
+  padding: clamp(22px, 3vw, 32px);
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr auto;
+  gap: clamp(20px, 3vw, 36px);
+  align-items: center;
+  transition: box-shadow .22s ease;
+}
+.ne-band-wrap:hover { box-shadow: 0 22px 48px -22px rgba(138, 101, 0, 0.55); }
+/* Decorative concentric white circles, top-right corner, same treatment
+   as the newcomer CTA block. Adds a club-colour signature without
+   competing with the text. */
+.ne-band-wrap::before {
+  content: "";
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 260px; height: 260px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.ne-band-wrap::after {
+  content: "";
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.ne-band-text, .ne-band-actions { position: relative; z-index: 2; }
+/* Stretched-link pattern, clicking anywhere on the band goes to that
+   event's page. The SI Entries button + eyebrow link sit at a higher
+   z-index so they remain individually clickable. */
+.ne-band-text h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+.ne-band-text h2 a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.ne-band-text h2 a:hover { color: var(--gold-bright); }
+.ne-band-text .eyebrow a,
+.ne-band-actions {
+  position: relative;
+  z-index: 2;
+}
+.ne-band-text .eyebrow a {
+  color: inherit;
+  text-decoration: none;
+}
+.ne-band-text .eyebrow a:hover { color: var(--paper); }
+.ne-band-text .eyebrow {
+  color: var(--gold-bright);
+  margin-bottom: 12px;
+}
+.ne-band-text .eyebrow::before { background: var(--gold-bright); }
+.ne-band-text h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 20;
+  margin: 0 0 8px 0;
+  color: var(--paper);
+}
+.ne-band-when {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 224, 0.75);
+  margin: 0 0 8px 0;
+}
+.ne-band-summary {
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgba(244, 237, 224, 0.85);
+  margin: 0 0 8px 0;
+}
+.ne-band-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--paper);
+  margin: 0;
+}
+.ne-band-terms span {
+  padding: 3px 10px;
+  background: rgba(244, 237, 224, 0.12);
+  border: 1px solid rgba(244, 237, 224, 0.25);
+}
+.ne-band-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+.ne-band-event-link {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  align-self: center;
+  white-space: nowrap;
+  transition: color .18s ease, border-color .18s ease;
+}
+.ne-band-event-link:hover { color: var(--plum); border-color: var(--plum); }
+
+@media (max-width: 880px) {
+  .ne-band-wrap { grid-template-columns: 1fr; gap: 20px; }
+  .ne-band-event-link { justify-self: start; }
+  .ne-band-actions { align-items: flex-start; }
+}
+
+/* ───────────────────────────── latest results (homepage) */
+.latest-results {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  /* Tightened top padding to keep band close to Next Event card. */
+  padding: clamp(8px, 1vw, 16px) var(--pad-x) clamp(20px, 3vw, 36px);
+}
+.latest-results-wrap {
+  position: relative;
+  background: var(--navy);
+  color: var(--paper);
+  border-top: 4px solid var(--gold);
+  padding: clamp(22px, 3vw, 32px);
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr auto;
+  gap: clamp(20px, 3vw, 36px);
+  align-items: center;
+  transition: box-shadow .22s ease;
+}
+.latest-results-wrap:hover { box-shadow: 0 22px 48px -22px rgba(0, 0, 0, 0.55); }
+/* Stretched-link pattern, clicking anywhere on the band goes to that
+   event's page. Individual file downloads + the eyebrow link sit at a
+   higher z-index so they remain separately clickable. */
+.lr-text h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+.lr-text h2 a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.lr-text h2 a:hover { color: var(--gold-bright); }
+.lr-text .eyebrow a,
+.lr-files {
+  position: relative;
+  z-index: 2;
+}
+.lr-text .eyebrow a {
+  color: inherit;
+  text-decoration: none;
+}
+.lr-text .eyebrow a:hover { color: var(--paper); }
+.lr-text .eyebrow { color: var(--gold-bright); margin-bottom: 12px; }
+.lr-text .eyebrow::before { background: var(--gold-bright); }
+.lr-text h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 20;
+  margin: 0 0 8px 0;
+  color: var(--paper);
+}
+.lr-when {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(240, 243, 247, 0.7);
+  margin: 0;
+}
+.lr-files { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.lr-files a {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--paper);
+  font-size: 14px;
+  transition: background .18s ease, color .18s ease;
+}
+.lr-files a:hover { background: var(--gold); color: var(--ink); }
+.lr-tag {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  background: var(--gold);
+  color: var(--ink);
+}
+.lr-files a:hover .lr-tag { background: var(--ink); color: var(--gold); }
+.lr-label { font-weight: 500; }
+.lr-event-link {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  border-bottom: 1px solid var(--gold-bright);
+  padding-bottom: 2px;
+  align-self: center;
+  white-space: nowrap;
+  transition: color .18s ease, border-color .18s ease;
+}
+.lr-event-link:hover { color: var(--paper); border-color: var(--paper); }
+
+@media (max-width: 880px) {
+  .latest-results-wrap { grid-template-columns: 1fr; gap: 20px; }
+  .lr-event-link { justify-self: start; }
+}
+
+/* ───────────────────────────── ANYTIME ORIENTEERING strip
+   Three cards highlighting Anytime O, POCs and MapRun, sits between the
+   upcoming events block and the social strip to give people a route into
+   the sport when there's nothing in the events diary. */
+.anytime-strip {
+  padding: clamp(40px, 5vw, 72px) var(--pad-x);
+  background: var(--paper-2);
+  border-top: 1px solid var(--rule);
+}
+.anytime-wrap { max-width: var(--max-w); margin: 0 auto; }
+.anytime-intro { max-width: 60ch; margin-bottom: 28px; }
+.anytime-intro .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+.anytime-intro .eyebrow::before { background: var(--plum); }
+.anytime-intro h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: clamp(26px, 3vw, 36px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variation-settings: "opsz" 48, "SOFT" 20;
+  color: var(--ink);
+  margin: 0 0 14px 0;
+}
+.anytime-intro p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+}
+/* Inline links inside homepage body paragraphs. The site has no global
+   <a> style (so nav, footer, buttons can each choose their own) which
+   means every prose context needs its own rule. Andy reported that
+   inline links in these blocks were invisible - they were inheriting
+   body colour with no underline. Pattern matches info pages, news
+   articles, event bodies: navy + 2px gold underline + magenta on hover. */
+.anytime-intro p a,
+.social-copy p a,
+.ws-brand p a,
+.page-lede a {
+  color: var(--navy);
+  text-decoration: underline;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  font-weight: 500;
+  transition: color .18s ease, text-decoration-color .18s ease;
+}
+.anytime-intro p a:hover,
+.anytime-intro p a:focus-visible,
+.social-copy p a:hover,
+.social-copy p a:focus-visible,
+.ws-brand p a:hover,
+.ws-brand p a:focus-visible,
+.page-lede a:hover,
+.page-lede a:focus-visible {
+  color: var(--plum);
+  text-decoration-color: var(--plum);
+}
+/* External-link arrow on links opening in a new tab - matches the
+   newcomer-cta panel treatment for visual consistency. */
+.anytime-intro p a[target="_blank"]::after,
+.social-copy p a[target="_blank"]::after,
+.ws-brand p a[target="_blank"]::after,
+.page-lede a[target="_blank"]::after {
+  content: " ↗";
+  font-size: 0.9em;
+  font-weight: 500;
+}
+.anytime-cards {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.anytime-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px 22px 20px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-top: 4px solid var(--plum);
+  height: 100%;
+  transition: transform .22s ease, box-shadow .22s ease, border-top-color .22s ease;
+}
+.anytime-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.4);
+  border-top-color: var(--gold);
+}
+.anytime-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.anytime-tag {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--plum);
+  margin: 0 0 4px 0;
+}
+.anytime-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.anytime-card-head .anytime-tag { margin: 0; }
+.anytime-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  flex: 0 0 44px;
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.3);
+}
+.anytime-card h3 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-variation-settings: "opsz" 36, "SOFT" 20;
+  color: var(--ink);
+  margin: 0;
+}
+.anytime-blurb {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  flex-grow: 1;
+}
+.anytime-go {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  align-self: flex-start;
+  margin-top: 6px;
+  transition: color .18s, border-color .18s;
+}
+.anytime-card:hover .anytime-go { color: var(--plum); border-color: var(--plum); }
+
+/* ───────────────────────────── social strip */
+.social-strip {
+  background: var(--navy-deep);
+  color: var(--paper);
+  padding: clamp(36px, 4vw, 56px) var(--pad-x);
+  position: relative;
+  overflow: hidden;
+  border-top: 4px solid var(--gold);
+}
+.social-strip::before {
+  content: "";
+  position: absolute; top: -80px; right: -80px;
+  width: 280px; height: 280px;
+  background: var(--plum);
+  transform: rotate(45deg);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  opacity: 0.18;
+  pointer-events: none;
+}
+.social-wrap {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: clamp(24px, 3vw, 48px);
+  align-items: center;
+  position: relative;
+}
+.social-copy .eyebrow { color: var(--gold); margin-bottom: 14px; }
+.social-copy .eyebrow::before { background: var(--gold); }
+.social-copy h2 {
+  font-family: var(--ff-display);
+  font-weight: 500;
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-variation-settings: "opsz" 48, "SOFT" 20;
+  color: var(--paper);
+  margin: 0 0 10px 0;
+  max-width: 22ch;
+}
+.social-copy p {
+  color: rgba(240, 243, 247, 0.78);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 36ch;
+  margin: 0;
+}
+.social-buttons {
+  display: flex; gap: 12px;
+  flex-wrap: wrap;
+}
+.social-btn {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 14px 20px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background .2s ease, color .2s ease, transform .2s ease;
+  white-space: nowrap;
+}
+.social-btn:hover { background: var(--gold); color: var(--ink); transform: translateY(-2px); }
+.social-btn svg { width: 20px; height: 20px; flex: 0 0 20px; }
+.social-btn .handle {
+  display: block;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.social-btn strong { display: block; font-weight: 500; }
+
+@media (max-width: 820px) {
+  .social-wrap { grid-template-columns: 1fr; }
+  .social-buttons { flex-direction: column; }
+  .social-btn { width: 100%; justify-content: flex-start; }
+}
+
+/* ───────────────────────────── wider sport band (British Orienteering) */
+.wider-sport {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: clamp(32px, 4vw, 56px) var(--pad-x) clamp(8px, 2vw, 16px);
+}
+.ws-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: clamp(24px, 3vw, 44px);
+  align-items: start;
+  padding-top: clamp(24px, 3vw, 36px);
+  border-top: 1px solid var(--rule);
+}
+.ws-brand { display: flex; flex-direction: column; gap: 18px; }
+.ws-brand .bo-logo {
+  display: inline-block;
+  max-width: 220px;
+  transition: opacity .2s ease;
+}
+.ws-brand .bo-logo:hover { opacity: 0.75; }
+.ws-brand .bo-logo img { width: 100%; height: auto; display: block; }
+.ws-brand p {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  max-width: 30ch;
+  margin: 0;
+}
+.ws-feed .eyebrow { margin-bottom: 20px; }
+.ws-feed .eyebrow::before { background: var(--plum); }
+.ws-feed ul { display: flex; flex-direction: column; gap: 0; }
+.ws-feed li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+}
+.ws-feed li:first-child { border-top: 1px solid var(--rule); }
+.ws-feed time {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-muted);
+  white-space: nowrap;
+}
+.ws-feed h3 {
+  font-family: var(--ff-body);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+  margin: 0;
+}
+.ws-feed h3 a { color: inherit; transition: color .18s ease; }
+.ws-feed h3 a:hover { color: var(--navy); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--plum); }
+.ws-feed .read {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--plum);
+  white-space: nowrap;
+}
+.ws-footer {
+  margin-top: 18px;
+  display: flex; justify-content: flex-end;
+}
+.ws-footer a {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 2px;
+  transition: color .18s, border-color .18s;
+}
+.ws-footer a:hover { color: var(--plum); border-color: var(--plum); }
+
+@media (max-width: 820px) {
+  .ws-grid { grid-template-columns: 1fr; gap: 24px; }
+  .ws-feed li { grid-template-columns: 1fr; gap: 6px; }
+  .ws-feed .read { justify-self: start; }
+}
+
+/* ───────────────────────────── bottom split: latest + newcomers */
+.bottom-split {
+  max-width: var(--max-w); margin: 0 auto;
+  padding: clamp(24px, 4vw, 56px) var(--pad-x) clamp(40px, 5vw, 72px);
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: clamp(24px, 3vw, 44px);
+}
+.featured-news {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 24px;
+  /* IMPORTANT: do NOT use align-items: stretch here. Stretch + the
+     image's aspect-ratio: 4/5 together force the image to compute a
+     WIDTH from the stretched row height, which can be wider than its
+     1fr grid cell - the image then bleeds into the headline column
+     (Andy reported this 2026-05). `align-items: start` lets each
+     child take its natural height; the image is sized purely by its
+     1fr width × aspect-ratio. */
+  align-items: start;
+}
+/* Both grid children need min-width: 0 so a long headline in .news-body
+   (or a wide image in .news-image) can't push its track past its 1fr
+   share. Defense-in-depth alongside align-items: start above. */
+.featured-news > * { min-width: 0; }
+.news-image {
+  position: relative;
+  background: var(--navy);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  display: block;
+  /* Pin width to the grid cell so the image element can never compute
+     wider than its track, no matter what aspect-ratio works out to. */
+  width: 100%;
+  max-width: 100%;
+}
+.news-image img {
+  max-width: 100%;
+}
+.news-image img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .6s cubic-bezier(.2,.6,.2,1);
+}
+.news-image:hover img { transform: scale(1.03); }
+.news-image::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 55%, rgba(0, 0, 0, 0.75));
+  pointer-events: none;
+}
+.news-image .news-caption {
+  position: absolute; left: 14px; right: 14px; bottom: 12px;
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  z-index: 2;
+}
+.news-body { display: flex; flex-direction: column; padding: 6px 0; }
+.news-body .eyebrow { margin-bottom: 18px; }
+.news-body h2 {
+  font-family: var(--ff-display);
+  font-weight: 600;
+  font-size: clamp(26px, 2.5vw, 36px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--navy);
+  margin-bottom: 14px;
+}
+.news-body p {
+  color: var(--ink-soft);
+  margin-bottom: 20px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.news-body .more {
+  margin-top: auto;
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink);
+  align-self: flex-start;
+  transition: color .2s, border-color .2s;
+}
+.news-body .more:hover { color: var(--gold); border-color: var(--gold); }
+
+.newcomer-cta {
+  /* Magenta block, strong club-colour moment on the homepage. White text
+     on plum reads at AAA contrast (>7:1). Gold accents stay legible. */
+  background: var(--plum);
+  color: var(--paper);
+  padding: 32px 28px 28px;
+  display: flex; flex-direction: row; align-items: center;
+  gap: 26px;
+  position: relative;
+  overflow: hidden;
+}
+.cta-text {
+  display: flex; flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative; z-index: 1;
+}
+.newcomer-cta::before {
+  content: "";
+  position: absolute;
+  top: -80px; right: -80px;
+  width: 260px; height: 260px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+}
+.newcomer-cta::after {
+  content: "";
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 180px; height: 180px;
+  border: 2px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+}
+.newcomer-cta .eyebrow {
+  /* Use --paper (near-white) on plum to clear WCAG AA. The previous
+     --gold-bright only hit ~3.4:1 - fine for decorative accents but
+     not for small uppercase label text. */
+  color: var(--paper);
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+.newcomer-cta .eyebrow::before { background: var(--gold); }
+.newcomer-cta h2 {
+  font-family: var(--ff-display);
+  font-weight: 600;
+  font-size: clamp(24px, 2.2vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+  position: relative; z-index: 1;
+}
+.newcomer-cta h2 em {
+  color: var(--gold-bright);
+}
+/* Inline links inside the magenta panel - heading or body. Default
+   <a> styles elsewhere on the site assume a dark-text/paper background,
+   so without this rule a link on the plum panel inherits the cream
+   body colour with no underline and is invisible as a link. Gold
+   underline + lifted gold-bright text on hover reads clearly against
+   plum and matches the gold accent already used on the panel. */
+.newcomer-cta a {
+  color: var(--gold-bright);
+  text-decoration: underline;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  font-weight: 500;
+  transition: color .18s ease, text-decoration-color .18s ease;
+}
+.newcomer-cta a:hover,
+.newcomer-cta a:focus-visible {
+  color: var(--paper);
+  text-decoration-color: var(--paper);
+}
+/* External-link arrow appended automatically. Applied via [target] so
+   it appears only on links that open in a new tab (i.e. external URLs
+   marked-up by the inline() helper in src/pages/index.astro). */
+.newcomer-cta a[target="_blank"]::after {
+  content: " ↗";
+  font-size: 0.9em;
+  font-weight: 600;
+}
+.newcomer-cta p {
+  /* Full-opacity cream on plum gets ~6:1, passes WCAG AA comfortably.
+     Previous 0.78 opacity diluted to ~3:1 which failed AA. */
+  color: rgba(244, 237, 224, 1);
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: 24px;
+  max-width: 34ch;
+  position: relative; z-index: 1;
+}
+.cta-video {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  flex: 0 0 42%;
+  max-width: 340px;
+  align-self: center;
+  margin: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+  z-index: 1;
+}
+/* Stack text over video on narrow screens so neither gets squeezed */
+@media (max-width: 620px) {
+  .newcomer-cta { flex-direction: column; align-items: stretch; }
+  .cta-video { flex-basis: auto; max-width: none; width: 100%; margin-top: 4px; }
+}
+.cta-video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  border: 0;
+  display: block;
+}
+.newcomer-cta .btn {
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 500;
+  align-self: flex-start;
+  margin-top: auto;
+  position: relative; z-index: 1;
+}
+.newcomer-cta .btn:hover { background: var(--gold-bright); color: var(--ink); }
+
+/* ───────────────────────────── footer */
+.footer {
+  position: relative;
+  background: var(--navy-deep);
+  color: rgba(244, 237, 224, 0.75);
+  padding: clamp(40px, 5vw, 64px) var(--pad-x) 28px;
+}
+/* Club-colour stripe across the top of the footer: gold + plum + navy
+   echoing the logo palette */
+.footer::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 6px;
+  background: linear-gradient(
+    to right,
+    var(--gold)  0%, var(--gold)  33.33%,
+    var(--plum)  33.33%, var(--plum)  66.66%,
+    var(--navy-soft) 66.66%, var(--navy-soft) 100%
+  );
+}
+.foot-wrap { max-width: var(--max-w); margin: 0 auto; }
+.foot-grid {
+  display: grid;
+  /* Brand column (left) + four link columns (Events / Get involved /
+     Maps / Club). All five tops align on one row at desktop widths.
+     The brand column is given more room so the tagline + BO logo can
+     breathe; the link columns share the remainder equally. */
+  grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(140px, 1fr));
+  gap: 40px 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid rgba(244, 237, 224, 0.1);
+}
+/* Stack the brand column above the link columns on narrower viewports
+   so the layout doesn't get squashed below ~880px. */
+@media (max-width: 880px) {
+  .foot-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .foot-grid .brand-col { grid-column: 1 / -1; }
+}
+.foot-grid .brand-small {
+  font-family: var(--ff-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--paper);
+  font-variation-settings: "opsz" 24, "SOFT" 30;
+  margin: 0 0 8px 0;
+}
+.foot-grid .brand-copy { font-size: 13px; line-height: 1.6; max-width: 28ch; margin: 0 0 22px 0; }
+.foot-grid .bo-credibility {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  transition: opacity .2s ease;
+}
+.foot-grid .bo-credibility:hover { opacity: 0.8; }
+.foot-grid .bo-credibility img { width: 140px; height: auto; display: block; }
+.foot-grid .bo-caption {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+}
+.foot-lbl {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 14px;
+}
+.foot-grid a {
+  font-size: 14px;
+  color: rgba(244, 237, 224, 0.8);
+  display: inline-block;
+  padding: 4px 0;
+  transition: color .2s;
+}
+.foot-grid a:hover { color: var(--gold); }
+.foot-bottom {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 22px;
+  gap: 16px; flex-wrap: wrap;
+}
+.foot-bottom, .foot-bottom a {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 224, 0.5);
+}
+.foot-bottom a:hover { color: var(--gold); }
+
+/* ───────────────────────────── motion */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise .7s cubic-bezier(.2,.6,.2,1) both; }
+.d-1 { animation-delay: .05s; }
+.d-2 { animation-delay: .15s; }
+.d-3 { animation-delay: .25s; }
+.d-4 { animation-delay: .35s; }
+.d-5 { animation-delay: .45s; }
+.d-6 { animation-delay: .55s; }
+.d-7 { animation-delay: .65s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, [class^="d-"] { animation: none; }
+  html { scroll-behavior: auto; }
+  .btn:hover { transform: none; }
+}
+
+/* ───────────────────────────── responsive breakpoints */
+@media (max-width: 1060px) {
+  .hero-wrap { grid-template-columns: 1fr; gap: 40px; }
+  .hero-intro h1 { font-size: clamp(38px, 7vw, 64px); }
+  .bottom-split { grid-template-columns: 1fr; }
+  .featured-news { grid-template-columns: 1fr 1.4fr; }
+  /* Single-column hero: text spans the full width over the photo, so use a
+     gentler, more even scrim (top→bottom) instead of the left-heavy one so
+     all the text stays legible while the photo still shows through. */
+  .hero-backdrop::after {
+    background:
+      linear-gradient(180deg,
+        rgba(0, 0, 0, 0.58) 0%,
+        rgba(0, 0, 0, 0.50) 55%,
+        rgba(0, 0, 0, 0.60) 100%);
+  }
+}
+
+@media (max-width: 780px) {
+  .event-row { grid-template-columns: 1fr 1fr; }
+  .ev-card:nth-child(2n) { border-right: 0; }
+  .ev-card:nth-child(1), .ev-card:nth-child(2) { border-bottom: 1px solid var(--rule); }
+  .featured-news { grid-template-columns: 1fr; }
+  .news-image { aspect-ratio: 16 / 10; }
+}
+
+@media (max-width: 520px) {
+  .hero-stats { grid-template-columns: 1fr; gap: 14px; padding-top: 20px; }
+  .event-row { grid-template-columns: 1fr; }
+  .ev-card { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .ev-card:last-child { border-bottom: 0; }
+  .event-meta { grid-template-columns: 1fr; }
+  .next-event { padding: 24px 22px 22px; }
+  .event-date .big { font-size: 68px; }
+}
+</style>
+<body>
+
+<a class="skip" href="#main">Skip to main content</a>
+
+<Header />
+
+<slot />
+
+<Footer />
+
+<script>
+  // mobile nav toggle
+  (function(){
+    var btn = document.querySelector('.nav-toggle');
+    var wrap = document.getElementById('primary-nav-wrap');
+    if (!btn || !wrap) return;
+    btn.addEventListener('click', function(){
+      var open = wrap.classList.toggle('open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }());
+</script>
+
+<!-- Netlify Identity widget, handles committee logins for the /admin CMS.
+     Loaded lazily on non-admin pages so it doesn't bloat the homepage payload
+     for ordinary visitors. The widget is still needed everywhere so that
+     email-invite confirmation links land correctly on any page, but we defer
+     the network fetch until the browser is idle. -->
+<script is:inline>
+  (function () {
+    function loadIdentity() {
+      var s = document.createElement('script');
+      s.src = 'https://identity.netlify.com/v1/netlify-identity-widget.js';
+      s.async = true;
+      s.onload = function () {
+        if (!window.netlifyIdentity) return;
+        window.netlifyIdentity.on('init', function (user) {
+          if (!user) {
+            window.netlifyIdentity.on('login', function () {
+              document.location.href = '/admin/';
+            });
+          }
+        });
+      };
+      document.head.appendChild(s);
+    }
+    // Load immediately on /admin (the CMS depends on it). Elsewhere defer
+    // until the browser is idle so it doesn't compete with above-the-fold
+    // rendering. Also load if the URL contains an invite/recovery token.
+    var pathname = window.location.pathname || '';
+    var hash = window.location.hash || '';
+    var isAdmin = pathname.indexOf('/admin') === 0;
+    var hasAuthToken = hash.indexOf('invite_token') !== -1
+                    || hash.indexOf('recovery_token') !== -1
+                    || hash.indexOf('confirmation_token') !== -1;
+    if (isAdmin || hasAuthToken) {
+      loadIdentity();
+    } else if ('requestIdleCallback' in window) {
+      requestIdleCallback(loadIdentity, { timeout: 3000 });
+    } else {
+      setTimeout(loadIdentity, 2000);
+    }
+  })();
+</script>
+
+</body>
+</html>

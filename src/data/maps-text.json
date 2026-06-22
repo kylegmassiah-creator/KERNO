@@ -1,0 +1,22 @@
+{
+  "_comment": "Text for the /maps (Mapped areas) page. Edited via the CMS at /admin → Site settings → Maps page text. The map cards themselves are pulled from the Maps content collection automatically.",
+  "hero": {
+    "eyebrow": "Mapped areas",
+    "headingTemplate": "{count} mapped areas across Cornwall.",
+    "lede": "Every venue KERNO has surveyed and run on, from town-centre street-Os to open moorland fells. For previous courses and routes, head to [KERNO RouteGadget →](https://www.cornwall.routegadget.co.uk/rg2/)"
+  },
+  "overview": {
+    "eyebrow": "Where to find them",
+    "heading": "Every mapped area, on one map.",
+    "blurb": "All the areas we have mapped for orienteering. Select a flag to show its details.",
+    "landownerNote": "**Note:** possession or existence of a map does not imply right of access for orienteering or any other purpose. Permission must be obtained from the landowner."
+  },
+  "terrainBlurbs": {
+    "urban":    "Streets, housing estates, town parks. Quick decisions, lots of cut-throughs.",
+    "parkland": "Mature parks and school grounds. Friendly to newcomers and families.",
+    "forest":   "Plantation and mixed woodland. Real navigation, careful contour reading.",
+    "moorland": "Open hill country, rough grass and heather. Cornwall at its best.",
+    "mtbo":     "Mountain bike orienteering. Rideable forest tracks and singletrack.",
+    "mixed":    "Combinations of the above."
+  }
+}

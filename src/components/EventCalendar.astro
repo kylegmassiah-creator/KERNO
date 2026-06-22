@@ -1,0 +1,288 @@
+---
+// Three-month calendar grid showing KERNO upcoming events.
+//
+// For each day, if there's at least one event, the cell becomes a
+// clickable link to that event's detail page (or shows a tooltip listing
+// multiple events on the same day). Today is subtly ringed.
+//
+// Pure HTML/CSS, no calendar library, no JavaScript runtime.
+
+interface CalEvent {
+  id: string;
+  title: string;
+  date: Date;
+  format?: string;
+  location?: string;
+}
+
+export interface Props {
+  events: CalEvent[];
+  /** How many months from today to render. Default 3. */
+  monthsAhead?: number;
+}
+
+const { events, monthsAhead = 3 } = Astro.props;
+
+// Build a lookup of YYYY-MM-DD → events on that day, sorted by date.
+const eventsByDay = new Map<string, CalEvent[]>();
+for (const ev of events) {
+  const d = ev.date;
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+  eventsByDay.get(key)!.push(ev);
+}
+for (const list of eventsByDay.values()) {
+  list.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+// Generate the months we need to render, starting with the current month
+// and including the next (monthsAhead - 1) months.
+const today = new Date();
+const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+const startMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+const monthLabel = (d: Date) =>
+  new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'Europe/London' }).format(d);
+
+interface DayCell {
+  key: string;
+  day: number;
+  inMonth: boolean;
+  isToday: boolean;
+  events: CalEvent[];
+}
+
+interface MonthGrid {
+  label: string;
+  weeks: DayCell[][];
+}
+
+function buildMonth(year: number, month: number): MonthGrid {
+  const first = new Date(year, month, 1);
+  // Monday = 0 (UK convention). JS getDay returns Sunday=0, Monday=1, etc.
+  const firstWeekday = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const weeks: DayCell[][] = [];
+  let week: DayCell[] = [];
+
+  // Leading days from previous month to fill the first week.
+  for (let i = 0; i < firstWeekday; i++) {
+    const day = daysInPrevMonth - firstWeekday + 1 + i;
+    const d = new Date(year, month - 1, day);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    week.push({ key, day, inMonth: false, isToday: key === todayKey, events: eventsByDay.get(key) ?? [] });
+  }
+
+  // Days of the target month.
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    week.push({ key, day, inMonth: true, isToday: key === todayKey, events: eventsByDay.get(key) ?? [] });
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+
+  // Trailing days to fill the last week.
+  if (week.length > 0) {
+    let nextDay = 1;
+    while (week.length < 7) {
+      const d = new Date(year, month + 1, nextDay);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      week.push({ key, day: nextDay, inMonth: false, isToday: key === todayKey, events: eventsByDay.get(key) ?? [] });
+      nextDay++;
+    }
+    weeks.push(week);
+  }
+
+  return { label: monthLabel(new Date(year, month, 1)), weeks };
+}
+
+const months: MonthGrid[] = [];
+for (let i = 0; i < monthsAhead; i++) {
+  const d = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
+  months.push(buildMonth(d.getFullYear(), d.getMonth()));
+}
+
+// Single-letter labels keep the calendar narrow enough to fit in the
+// side column alongside the map.
+const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+---
+<div class="event-calendar" aria-label="KERNO event calendar">
+  <div class="event-calendar-key" aria-hidden="true">
+    <span class="key-marker"></span>
+    <span class="key-label">Days marked in plum have a KERNO event. Click to open it.</span>
+  </div>
+
+  <div class="event-calendar-grid">
+    {months.map(month => (
+      <div class="cal-month">
+        {/* Was <h3>, switched to <p> because this is a widget label, not
+            a content heading. The events page already has an h1 + h2s for
+            Upcoming/Past results; treating the calendar month as an h3
+            broke the sequential heading order check. */}
+        <p class="cal-month-label">{month.label}</p>
+        <div class="cal-weekday-row" aria-hidden="true">
+          {weekdayLabels.map(w => <span class="cal-weekday">{w}</span>)}
+        </div>
+        <div class="cal-days">
+          {month.weeks.flat().map(cell => {
+            const hasEvent = cell.inMonth && cell.events.length > 0;
+            const cellTitle = hasEvent
+              ? cell.events.map(e => `${e.title}${e.format ? ' (' + e.format + ')' : ''}${e.location ? ', ' + e.location : ''}`).join(' · ')
+              : undefined;
+            const Wrapper = hasEvent ? 'a' : 'span';
+            const wrapperProps = hasEvent
+              ? { href: `/events/${cell.events[0].id}`, title: cellTitle, 'aria-label': `${cell.day} ${month.label}: ${cellTitle}` }
+              : { 'aria-hidden': cell.inMonth ? undefined : 'true' };
+            return (
+              <Wrapper
+                class:list={[
+                  'cal-day',
+                  !cell.inMonth && 'cal-day--out',
+                  cell.isToday && 'cal-day--today',
+                  hasEvent && 'cal-day--event',
+                  cell.events.length > 1 && 'cal-day--multi',
+                ]}
+                {...wrapperProps}
+              >
+                <span class="cal-day-num">{cell.day}</span>
+                {cell.events.length > 1 && <span class="cal-day-count">{cell.events.length}</span>}
+              </Wrapper>
+            );
+          })}
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+
+<style>
+  .event-calendar {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(20px, 3vw, 40px) var(--pad-x);
+  }
+
+  .event-calendar-key {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .key-marker {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    background: var(--plum);
+  }
+
+  /* Compact "at a glance" sizing, months stack vertically by default
+     so the calendar fits in a narrow column alongside the map. */
+  .event-calendar-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .cal-month {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 10px 10px 8px;
+  }
+  .cal-month-label {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 0 0 8px 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .cal-weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    margin-bottom: 3px;
+  }
+  .cal-weekday {
+    font-family: var(--ff-mono);
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    text-align: center;
+    padding: 3px 0;
+  }
+
+  .cal-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+  .cal-day {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--ink);
+    background: var(--paper-2);
+    text-decoration: none;
+    transition: background .18s ease, color .18s ease, transform .15s ease;
+  }
+  .cal-day-num { line-height: 1; }
+  .cal-day--out { color: var(--rule-2); background: transparent; }
+  .cal-day--today {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+    font-weight: 500;
+  }
+  .cal-day--event {
+    background: var(--plum);
+    color: var(--paper);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .cal-day--event:hover {
+    background: var(--ink);
+    color: var(--paper);
+    transform: scale(1.06);
+  }
+  .cal-day--event.cal-day--today {
+    outline-color: var(--gold-bright);
+  }
+
+  /* Count badge for days with multiple events */
+  .cal-day-count {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-family: var(--ff-mono);
+    font-size: 8px;
+    line-height: 1;
+    color: var(--gold-bright);
+    font-weight: 500;
+  }
+
+  @media (max-width: 520px) {
+    .event-calendar { padding: 14px 14px 24px; }
+    .event-calendar-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .cal-month { padding: 12px 10px 10px; }
+    .cal-day { font-size: 11px; }
+  }
+</style>

@@ -1,0 +1,128 @@
+{
+  "_comment": "Text content for the /newcomers page. Edited via the CMS at /admin → Site settings → Newcomers page. Body fields support markdown (links, bold, italics) - the page renders them at build time.",
+  "hero": {
+    "eyebrow": "For newcomers",
+    "heading": "A sport for thinking on the move.",
+    "lede": "You're given a special orienteering map showing terrain, paths, vegetation, walls, fences, and the locations of the checkpoints (controls) you need to find. The key to being successful is finding the most optimum route between the checkpoints to complete the course.\n\n**Pick a course, find the checkpoints, race the clock at your own pace**",
+    "primaryCtaLabel": "See upcoming events",
+    "primaryCtaUrl": "/events",
+    "secondaryCtaLabel": "Frequently asked questions",
+    "secondaryCtaUrl": "#faq"
+  },
+  "howItWorks": {
+    "eyebrow": "How it works",
+    "heading": "Pick a course, find the controls, race the clock, at your own pace.",
+    "items": [
+      {
+        "title": "1. The map",
+        "body": "You're given a special orienteering map showing terrain, paths, vegetation, walls, fences, and the locations of the control points you need to find. The map is the puzzle."
+      },
+      {
+        "title": "2. The course",
+        "body": "Many events will offer courses of different lengths and difficulty, meaning there is a course regardless of age, experience and fitness level."
+      },
+      {
+        "title": "3. The clock",
+        "body": "Whether it’s a Linear (number order) course or a Score course (time-limit), you choose the pace. Walk, run or race the courses! The handy Routegadget tool allows you to compare your route with others after the event to see which route-choices everybody took!"
+      }
+    ]
+  },
+  "whatToBring": {
+    "eyebrow": "What to bring",
+    "heading": "Usual running kit and a sense of adventure is all you need to get started!",
+    "items": [
+      {
+        "title": "Footwear",
+        "body": "It’s worth checking the event page as this will advise you on the best shoes to wear. For Urban and Street O events road trainers will be fine. For other events such as forest and parkland, trail trainers with a decent grip are usually recommended as your course may take you ‘off-road’."
+      },
+      {
+        "title": "Clothing",
+        "body": "For urban and street events, shorts and road trainers are fine. For events which are on terrain, such as moorland and woodland, lightweight long trousers/running tights and a long-sleeved top to protect against undergrowth may be useful. Where typical Cornwall weather prevails, a waterproof in changeable weather is always a good addition to the kitbag."
+      },
+      {
+        "title": "Compass",
+        "body": "Helpful but not essential until you hit the harder courses. For street and urban events, navigating off map features and detail is enough to get successfully complete an event. In terrain, courses up to Intermediate level (Orange/Red), have checkpoints near a line feature (wall/path etc). For courses increasing in difficulty, knowing how to use a compass to take a bearing between some checkpoints may be necessary. A simple baseplate compass costs as little as £10."
+      },
+      {
+        "title": "Dibber (SI card)",
+        "body": "The electronic timing chip, worn on a finger that you carry round the course. These ‘dib’ into the electronic boxes at checkpoints (for many events), and records your visit/ final time, and depending on event - score instantly, once it is downloaded at the finish.\nKERNO loans them on the day for £1 and this can be added to your entry sign up."
+      },
+      {
+        "title": "Whistle",
+        "body": "Not usually needed (will always be added to final details and race info if relevant)"
+      },
+      {
+        "title": "A friend",
+        "body": "You can run as a pair or trio at most KERNO events. It’s a great way to try the sport, and at many of our events there is an entry option of a ‘pair, trio/family’ option."
+      }
+    ]
+  },
+  "yourFirstEvent": {
+    "eyebrow": "Your first event",
+    "heading": "Register → Navigate → Have Fun",
+    "steps": [
+      {
+        "lead": "Find an event near you",
+        "body": "on the [events page](/events). Our Wednesday evening events are a great introduction to orienteering with most starting from a social hub, stick around for a drink or bite to eat after the event and find out where everybody went right (and wrong!)"
+      },
+      {
+        "lead": "Pre-enter online",
+        "body": "through SI Entries (link from each event page) where indicated and before the event you’ll receive a ‘Final details’ email with all the information you need to know, including any last minute changes or information to help you with the event."
+      },
+      {
+        "lead": "When to arrive.",
+        "body": "Most KERNO events have open start windows, give yourself plenty of time to pick up your SI Card - hire dibber and get to the start. You’ll find this at ‘Download’ at the event which will be signposted on the day, this will also be an information spot too with helpers around to answer any questions you may have."
+      },
+      {
+        "lead": "When you get to the start ",
+        "body": " tell them it's your first event and they’ll talk you through the map, what to expect and how to get going."
+      },
+      {
+        "lead": "The clock starts",
+        "body": "when you place your SI card into the start box and collect your map"
+      },
+      {
+        "lead": "Find the checkpoints on your course using the map.",
+        "body": "Depending on the event, you may see some which are not on your course (double check it is the one you want). Place your SI card into the box at the checkpoint, it will beep and record your visit. If you’re taking part in a Street-O event the checkpoints will be on street furniture and you’ll need to complete a clue at each one on your answer sheet instead."
+      },
+      {
+        "lead": "At all events ",
+        "body": " you will need to place your SI card in the Finish control to 'stop the clock' when you're done, this will stop your time. Download your SI card at Download, where your time/result will be printed out."
+      }
+    ]
+  },
+  "comingUp": {
+    "eyebrow": "Coming up",
+    "heading": "The next three events you could take part in."
+  },
+  "faq": {
+    "eyebrow": "Frequently asked",
+    "heading": "The questions newcomers actually ask.",
+    "items": [
+      {
+        "question": "Do I have to run?",
+        "answer": "No. Walking an orienteering course is a great way to learn the basics, you can walk, run or race the courses. Sometimes ‘slowing down’ helps you ‘speed up’, as you may see the map in clearer detail and understand it further, catching that all important cut-through or optimal route!"
+      },
+      {
+        "question": "How long is a course?",
+        "answer": "It depends on the event format, Score events are time limited so its dependant on how far you can cover in a given time. Linear courses can range from less than 1km up to 13+km, there’s a course length for everyone!"
+      },
+      {
+        "question": "Can I bring children?",
+        "answer": "Absolutely, orienteering is one of the most family-friendly outdoor sports. For Linear courses, White and Yellow courses are designed for children to do alone or with an adult. At Street O and Urban Score events, juniors under 16 can take part with an adult. For urban linear events there are often courses than children can do alone which stay within a park setting or only cross quiet residential roads, this may vary between events.  "
+      },
+      {
+        "question": "What if I can't read a map?",
+        "answer": "Then orienteering is a great way to learn!\nBeginner courses are designed so you can follow paths and obvious features without needing any specialist skills. Within a few events you'll find yourself reading the map naturally, and guidance is always given where wanted. With urban events there is a highly detailed map used, which will even show individual buildings, so these are a great way to start. We often hold training nights where different skills are practiced and coached.\n"
+      },
+      {
+        "question": "How much does it cost?",
+        "answer": "Costs vary depending upon the event but are typically from £5 for local events and £9 for regional events.\nKERNO membership costs £19.00 for adults and £8.00 for juniors.  This includes membership of British Orienteering."
+      },
+      {
+        "question": "Do I have to join the club?",
+        "answer": "You can come to KERNO events without being a member. If you enjoy the events, joining gives you British Orienteering insurance, lower entry fees, and membership discounts. [More on membership. ](/membership)"
+      }
+    ]
+  }
+}

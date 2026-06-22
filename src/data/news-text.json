@@ -1,0 +1,9 @@
+{
+  "_comment": "Text for the /news page. Edited via the CMS at /admin → Site settings → News page text. Only the page intro is editable here - the article cards below are pulled from the News content collection automatically.",
+  "hero": {
+    "eyebrow": "News",
+    "heading": "Race reports, club news and the occasional triumph.",
+    "lede": "What members have been up to, alongside the bigger announcements from KERNO and British Orienteering. Newest first."
+  },
+  "featuredEyebrow": "Latest"
+}

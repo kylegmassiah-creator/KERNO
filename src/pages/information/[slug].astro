@@ -1,0 +1,862 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Attachments from '../../components/Attachments.astro';
+import { getCollection, render } from 'astro:content';
+import { marked } from 'marked';
+
+// Tiny helper - wraps marked.parse / parseInline so any external link
+// in the resulting HTML opens in a new tab. The main markdown body
+// rendered via <Content /> already gets this via rehype-external-links,
+// but the twoColumn card bodies and the page blurbs render through
+// `marked.parse(...)` directly, which bypasses that pipeline. Andy
+// reported a markdown link in a card body opening in the same tab -
+// this is the fix. Match http/https only so internal links (/foo) keep
+// their default same-tab behaviour.
+function externalize(html: string): string {
+  return html.replace(
+    /<a (href="https?:\/\/[^"]+")/g,
+    '<a target="_blank" rel="noopener" $1'
+  );
+}
+const md       = (s: string) => externalize(marked.parse(s ?? '') as string);
+const mdInline = (s: string) => externalize(marked.parseInline(s ?? '') as string);
+
+export async function getStaticPaths() {
+  const pages = await getCollection('infoPages');
+  return pages
+    .filter(p => !p.data.draft)
+    .map(p => ({ params: { slug: p.id }, props: { page: p } }));
+}
+
+const { page } = Astro.props;
+const { Content } = await render(page);
+
+// ─────── POC overview map (only on pages with frontmatter pocMap: true)
+// Andy reported the POC info page used to have a map of every POC location
+// and wanted that back. Pulls every map flagged permanentCourse: true with
+// coordinates and renders a small Google Map of pins above the body. The
+// API key uses the typeof-guard pattern to avoid build errors when unset.
+const _pocGoogleMapsKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+const POC_GOOGLE_MAPS_KEY =
+  typeof _pocGoogleMapsKey === 'string' ? _pocGoogleMapsKey : '';
+let pocPins: Array<{ lat: number; lng: number; title: string; nearTown: string; url: string }> = [];
+if (page.data.pocMap) {
+  const allMaps = await getCollection('maps');
+  pocPins = allMaps
+    .filter(m => !m.data.draft && m.data.permanentCourse)
+    .filter(m => typeof m.data.coords?.lat === 'number' && typeof m.data.coords?.lng === 'number')
+    .map(m => ({
+      lat: m.data.coords!.lat,
+      lng: m.data.coords!.lng,
+      title: m.data.title,
+      nearTown: m.data.nearTown ?? '',
+      url: `/maps/${m.id}`,
+    }));
+}
+
+// Section labels for the eyebrow on the hero. (Sibling-page navigation
+// used to live in a sidebar/dropdown here - removed per Andy because
+// the /information hub is the canonical way to navigate between info
+// pages and the side navigation was redundant.)
+const sectionLabel: Record<string, string> = {
+  governance: 'Governance',
+  safety: 'Safety',
+  participation: 'Participation',
+  members: 'Members',
+  tips: 'Hints and tips',
+  admin: 'Admin',
+};
+
+const fmtReviewed = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  month: 'long', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+// BreadcrumbList JSON-LD, helps search results render a (Home › Information ›
+// Page) trail and reinforces the site's hierarchy for crawlers.
+const siteUrl = Astro.site ?? new URL("https://cornwallorienteering.org.uk");
+const canonical = new URL(Astro.url.pathname, siteUrl).toString();
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Home", item: siteUrl.toString() },
+    { "@type": "ListItem", position: 2, name: "Information", item: new URL("/information", siteUrl).toString() },
+    { "@type": "ListItem", position: 3, name: page.data.title, item: canonical },
+  ],
+};
+---
+<Layout
+  title={`${page.data.title}, Information, KERNO`}
+  description={page.data.summary}
+>
+
+<Fragment slot="head">
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbJsonLd)}></script>
+</Fragment>
+
+<main id="main">
+
+  <section class="info-page-hero">
+    <div class="info-page-hero-wrap">
+      <a class="back-link" href="/information">← All information</a>
+      {page.data.section && <p class="eyebrow">{sectionLabel[page.data.section]}</p>}
+      <h1>{page.data.title}</h1>
+      <p class="info-summary" set:html={mdInline(page.data.summary)}></p>
+    </div>
+  </section>
+
+  {page.data.pocMap && pocPins.length > 0 && POC_GOOGLE_MAPS_KEY && (
+    <section class="poc-map-section" aria-label="Permanent course locations">
+      <div class="poc-map-wrap">
+        <p class="poc-map-blurb">Every KERNO permanent course on one map. Click a flag for details and a link to the area page.</p>
+        <div
+          id="poc-overview-map"
+          class="poc-map"
+          data-pins={JSON.stringify(pocPins)}
+        ></div>
+      </div>
+    </section>
+  )}
+
+  <section class="info-page-body info-page-body--wide">
+    <div class="info-page-body-wrap">
+      <article class="info-prose">
+
+        {page.data.twoColumn && (
+          <div class="two-column-block">
+            <div class="two-column-col">
+              {page.data.twoColumn.leftHeading && (
+                <h2 class="two-column-heading">{page.data.twoColumn.leftHeading}</h2>
+              )}
+              {page.data.twoColumn.leftBlurb && (
+                <p class="two-column-blurb" set:html={mdInline(page.data.twoColumn.leftBlurb)}></p>
+              )}
+              {page.data.twoColumn.leftCards && page.data.twoColumn.leftCards.length > 0 && (
+                <ul class="two-column-cards">
+                  {page.data.twoColumn.leftCards.map(card => (
+                    <li class="two-column-card">
+                      {card.thumbnail && (
+                        <div class="two-column-thumb">
+                          <img src={card.thumbnail} alt={card.thumbnailAlt ?? ""} loading="lazy">
+                        </div>
+                      )}
+                      <h3>{card.title}</h3>
+                      <div set:html={md(card.body)}></div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div class="two-column-col">
+              {page.data.twoColumn.rightHeading && (
+                <h2 class="two-column-heading">{page.data.twoColumn.rightHeading}</h2>
+              )}
+              {page.data.twoColumn.rightBlurb && (
+                <p class="two-column-blurb" set:html={mdInline(page.data.twoColumn.rightBlurb)}></p>
+              )}
+              {page.data.twoColumn.rightCards && page.data.twoColumn.rightCards.length > 0 && (
+                <ul class="two-column-cards">
+                  {page.data.twoColumn.rightCards.map(card => (
+                    <li class="two-column-card">
+                      {card.thumbnail && (
+                        <div class="two-column-thumb">
+                          <img src={card.thumbnail} alt={card.thumbnailAlt ?? ""} loading="lazy">
+                        </div>
+                      )}
+                      <h3>{card.title}</h3>
+                      <div set:html={md(card.body)}></div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        <Content />
+        {page.data.attachments && page.data.attachments.length > 0 && (
+          <Attachments attachments={page.data.attachments} />
+        )}
+      </article>
+    </div>
+  </section>
+
+</main>
+
+{page.data.pocMap && pocPins.length > 0 && POC_GOOGLE_MAPS_KEY && (
+  <Fragment>
+    <script is:inline define:vars={{ pins: pocPins }}>
+      window.__pfoPocPins = pins;
+    </script>
+    <script is:inline>
+      // Orienteering control flag - same shape used on /maps and the
+      // events overview map for consistency.
+      window.__pfoFlagSvg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 40" width="30" height="40">' +
+          '<ellipse cx="9" cy="38" rx="6" ry="1.5" fill="rgba(0,0,0,0.35)"/>' +
+          '<line x1="6" y1="6" x2="6" y2="38" stroke="#1d1d1b" stroke-width="2" stroke-linecap="round"/>' +
+          '<polygon points="6,6 28,6 6,17" fill="#ffffff" stroke="#1d1d1b" stroke-width="1"/>' +
+          '<polygon points="6,17 28,6 28,28" fill="#d62828" stroke="#1d1d1b" stroke-width="1"/>' +
+        '</svg>'
+      );
+      window.initPfoPocOverview = function () {
+        var el = document.getElementById('poc-overview-map');
+        if (!el || typeof google === 'undefined' || !google.maps) return;
+        var pins = window.__pfoPocPins || [];
+        if (pins.length === 0) return;
+
+        var CORNWALL_CENTRE = { lat: 50.266, lng: -5.053 };
+        var map = new google.maps.Map(el, {
+          center: CORNWALL_CENTRE,
+          zoom: 11,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          mapTypeControl: true,
+          streetViewControl: false,
+          fullscreenControl: true,
+          scrollwheel: false,
+          gestureHandling: 'cooperative',
+        });
+
+        var iconUrl = 'data:image/svg+xml;charset=UTF-8,' +
+          encodeURIComponent(window.__pfoFlagSvg);
+        var iconOptions = {
+          url: iconUrl,
+          scaledSize: new google.maps.Size(30, 40),
+          anchor: new google.maps.Point(6, 38),
+        };
+
+        var infoWindow = new google.maps.InfoWindow();
+        var bounds = new google.maps.LatLngBounds();
+
+        pins.forEach(function (p) {
+          var pos = { lat: p.lat, lng: p.lng };
+          var marker = new google.maps.Marker({
+            position: pos,
+            map: map,
+            icon: iconOptions,
+            title: p.title,
+          });
+          bounds.extend(pos);
+          var near = p.nearTown
+            ? '<span class="m-near">' + p.nearTown + '</span><br>'
+            : '';
+          var html =
+            '<div class="club-info">' +
+              '<strong><a href="' + p.url + '">' + p.title + '</a></strong><br>' +
+              near +
+              '<span class="m-poc">Permanent course</span>' +
+            '</div>';
+          marker.addListener('click', function () {
+            infoWindow.setContent(html);
+            infoWindow.open({ anchor: marker, map: map });
+          });
+        });
+
+        bounds.extend(CORNWALL_CENTRE);
+        map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+        google.maps.event.addListenerOnce(map, 'idle', function () {
+          if (map.getZoom() > 12) map.setZoom(12);
+        });
+      };
+    </script>
+    <script
+      is:inline
+      async
+      defer
+      src={`https://maps.googleapis.com/maps/api/js?key=${POC_GOOGLE_MAPS_KEY}&callback=initPfoPocOverview&loading=async&v=weekly`}
+    ></script>
+  </Fragment>
+)}
+
+</Layout>
+
+<style>
+  /* ─── POC overview map ─────────────────────────────────────────────
+     Shown above the body on /information/permanent-orienteering-courses
+     when the page's `pocMap` frontmatter flag is set. Same pattern as
+     the /maps overview, just filtered to permanentCourse: true. */
+  .poc-map-section {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(20px, 3vw, 36px) var(--pad-x) 0;
+  }
+  .poc-map-wrap { display: grid; gap: 12px; }
+  .poc-map-blurb {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .poc-map {
+    height: clamp(320px, 50vh, 480px);
+    width: 100%;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--paper-2);
+    overflow: hidden;
+  }
+  .poc-map :global(.club-info) {
+    font-family: var(--ff-body);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .poc-map :global(.club-info a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+  }
+  .poc-map :global(.m-near) {
+    color: var(--ink-mute);
+    font-size: 12px;
+  }
+  .poc-map :global(.m-poc) {
+    color: var(--plum);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .info-page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(28px, 4vw, 48px) var(--pad-x) clamp(28px, 3vw, 40px);
+  }
+  .info-page-hero-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .back-link {
+    display: inline-block;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 24px;
+    transition: color .18s ease;
+  }
+  .back-link:hover { color: var(--plum); }
+  .eyebrow {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    display: inline-flex; align-items: center; gap: 10px;
+    margin: 0 0 16px 0;
+  }
+  /* Eyebrow triangle inherits from the global .eyebrow::before rule
+     in Layout.astro (orienteering-start outlined triangle). */
+  .info-page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 14px 0;
+  }
+  .info-summary {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+    max-width: 60ch;
+  }
+  .info-summary a {
+    color: var(--navy);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    transition: opacity 120ms ease;
+  }
+  .info-summary a:hover { opacity: 0.7; }
+  .info-meta {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink-mute);
+    margin: 0;
+  }
+
+  .info-page-body { padding: clamp(40px, 5vw, 64px) var(--pad-x); }
+  .info-page-body-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: clamp(32px, 4vw, 56px);
+    align-items: start;
+  }
+  /* Wide layout (used for pages with wide tables, e.g. POCs).
+     Single full-width column, sibling links collapse into a dropdown
+     above the prose. */
+  .info-page-body--wide .info-page-body-wrap {
+    display: block;
+  }
+  .info-page-dropdown {
+    margin: 0 0 28px 0;
+    background: var(--paper-2);
+    border-left: 3px solid var(--plum);
+  }
+  .info-page-dropdown > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    transition: background .18s ease;
+  }
+  .info-page-dropdown > summary::-webkit-details-marker { display: none; }
+  .info-page-dropdown > summary:hover { background: var(--paper-3); }
+  .info-page-dropdown > summary:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+  }
+  .dropdown-label {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .dropdown-arrow {
+    font-family: var(--ff-display);
+    font-size: 16px;
+    color: var(--plum);
+    transition: transform .22s ease;
+  }
+  .info-page-dropdown[open] .dropdown-arrow { transform: rotate(180deg); }
+  .info-page-dropdown ul {
+    list-style: none;
+    padding: 6px 18px 16px;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 4px 24px;
+    border-top: 1px solid var(--rule);
+  }
+  .info-page-dropdown li { margin: 0; }
+  .info-page-dropdown a {
+    display: block;
+    padding: 6px 0;
+    font-size: 14px;
+    color: var(--ink);
+    border-bottom: 1px solid transparent;
+    transition: color .18s, border-color .18s;
+  }
+  .info-page-dropdown a:hover { color: var(--plum); border-bottom-color: var(--plum); }
+  .info-page-dropdown .all-info-link { color: var(--plum); font-weight: 500; }
+
+  /* The prose container caps its width to the readable text column by
+     default. Without this cap the column stretched to fill its grid
+     track, which made floated decorative images (e.g. the MapRun logo
+     on /information/anytime-orienteering) land at the right edge of an
+     empty space far from the text. The wideLayout variant lifts the cap
+     so pages with wide tables (POC courses, MapRun list) can use the
+     full track width. */
+  .info-prose { min-width: 0; max-width: 75ch; }
+  .info-page-body--wide .info-prose { max-width: none; }
+
+  /* ─── Two-column card block ───────────────────────────────────────
+     Renders the optional `twoColumn` frontmatter block above the
+     markdown body. Used on /information/types-of-orienteering to split
+     the formats list into terrain (left) vs course style (right). Each
+     column has its own heading + blurb + stack of small cards. The
+     prose width cap above is overridden here so the columns can use the
+     full reading space without looking cramped. */
+  .two-column-block {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(20px, 3vw, 40px);
+    margin: 0 0 36px 0;
+    max-width: 100ch;
+  }
+  .two-column-heading {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2vw, 28px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--navy);
+    margin: 0 0 6px 0;
+    /* Magenta tick to echo the brand accent - same shape used on event
+       headings and the homepage. */
+    border-left: 4px solid var(--plum);
+    padding-left: 12px;
+  }
+  .two-column-blurb {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 16px 0;
+  }
+  .two-column-cards {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .two-column-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--gold);
+    padding: 14px 18px 16px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+  /* Optional thumbnail at the top of the card. Renders only when the
+     editor uploads an image via the CMS - see twoColumn schema in
+     content.config.ts. Intended for map snippets illustrating terrain
+     types on /information/types-of-orienteering; cards without a
+     thumbnail look unchanged. 16:9 landscape crops sit best in this
+     space; the container clips overflow so any aspect ratio still
+     looks tidy. */
+  .two-column-thumb {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    overflow: hidden;
+    background: var(--paper-2);
+    margin: -14px -18px 12px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .two-column-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .two-column-card:hover {
+    border-left-color: var(--plum);
+    box-shadow: 0 10px 28px -22px rgba(0, 0, 0, 0.5);
+  }
+  .two-column-card h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 17px;
+    line-height: 1.2;
+    color: var(--ink);
+    margin: 0 0 4px 0;
+  }
+  .two-column-card :global(p) {
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .two-column-card :global(p + p) { margin-top: 8px; }
+  .two-column-card :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .two-column-card :global(a:hover),
+  .two-column-card :global(a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  @media (max-width: 760px) {
+    .two-column-block {
+      grid-template-columns: 1fr;
+      gap: 32px;
+    }
+  }
+  .info-prose :global(h2) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2vw, 26px);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--navy);
+    margin: 32px 0 12px 0;
+    max-width: 30ch;
+  }
+  .info-prose :global(h2:first-child) { margin-top: 0; }
+  .info-prose :global(h3) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    color: var(--ink);
+    margin: 24px 0 8px 0;
+    max-width: 40ch;
+  }
+  .info-prose :global(p) {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin: 0 0 16px 0;
+    max-width: 65ch;
+  }
+  .info-prose :global(strong) { font-weight: 500; }
+  .info-prose :global(ul), .info-prose :global(ol) {
+    margin: 0 0 18px 1.4em;
+    padding: 0;
+    max-width: 65ch;
+  }
+  .info-prose :global(li) {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  /* Inline links in info-page prose. Pattern (navy + 2px gold underline +
+     magenta on hover) matches news articles, event bodies and homepage
+     paragraphs - Andy reported links were "hard to see" before the
+     thickness was bumped to 2px and font-weight added. NOTE: links
+     wrapped in a heading (e.g. markdown `## [Title](url)`) are styled
+     separately below so they read as headings, not as inline links. */
+  .info-prose :global(p a),
+  .info-prose :global(li a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .info-prose :global(p a:hover),
+  .info-prose :global(p a:focus-visible),
+  .info-prose :global(li a:hover),
+  .info-prose :global(li a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  /* Links wrapped in headings (e.g. markdown `## [Permanent Orienteering
+     Courses](...)`). Inherit the heading colour and font, no underline
+     - they should read as a clickable heading, not an inline link.
+     A subtle magenta-on-hover affordance signals they're clickable. */
+  .info-prose :global(h2 a),
+  .info-prose :global(h3 a),
+  .info-prose :global(h4 a) {
+    color: inherit;
+    text-decoration: none;
+    font-weight: inherit;
+    transition: color .18s ease;
+  }
+  .info-prose :global(h2 a:hover),
+  .info-prose :global(h2 a:focus-visible),
+  .info-prose :global(h3 a:hover),
+  .info-prose :global(h3 a:focus-visible),
+  .info-prose :global(h4 a:hover),
+  .info-prose :global(h4 a:focus-visible) {
+    color: var(--plum);
+  }
+
+  /* Bullet-list links to documents (PDFs, Google Drive maps) get a small
+     file-style icon so the page reads as a proper list of downloads. */
+  .info-prose :global(li > a[href$=".pdf"]),
+  .info-prose :global(li > a[href*="drive.google.com"]),
+  .info-prose :global(li > a[href$=".docx"]),
+  .info-prose :global(li > a[href$=".xlsx"]) {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: color .18s, border-color .18s;
+  }
+  .info-prose :global(li > a[href$=".pdf"])::before,
+  .info-prose :global(li > a[href*="drive.google.com"])::before,
+  .info-prose :global(li > a[href$=".docx"])::before,
+  .info-prose :global(li > a[href$=".xlsx"])::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 16px;
+    flex: 0 0 14px;
+    background-color: var(--gold-muted);
+    /* Inline SVG of a generic document icon, masked so it picks up colour */
+    -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16' fill='none' stroke='currentColor' stroke-width='1.4'><path d='M2 1.5h7l3 3v10a.5.5 0 01-.5.5h-9.5a.5.5 0 01-.5-.5V2a.5.5 0 01.5-.5z'/><path d='M9 1.5V4.5h3'/><line x1='3.5' y1='8' x2='10.5' y2='8'/><line x1='3.5' y1='10.5' x2='10.5' y2='10.5'/><line x1='3.5' y1='13' x2='8' y2='13'/></svg>");
+    mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 16' fill='none' stroke='currentColor' stroke-width='1.4'><path d='M2 1.5h7l3 3v10a.5.5 0 01-.5.5h-9.5a.5.5 0 01-.5-.5V2a.5.5 0 01.5-.5z'/><path d='M9 1.5V4.5h3'/><line x1='3.5' y1='8' x2='10.5' y2='8'/><line x1='3.5' y1='10.5' x2='10.5' y2='10.5'/><line x1='3.5' y1='13' x2='8' y2='13'/></svg>");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    transform: translateY(2px);
+  }
+  .info-prose :global(li > a[href$=".pdf"]:hover),
+  .info-prose :global(li > a[href*="drive.google.com"]:hover),
+  .info-prose :global(li > a[href$=".docx"]:hover),
+  .info-prose :global(li > a[href$=".xlsx"]:hover) {
+    color: var(--plum);
+    border-bottom-color: var(--plum);
+  }
+  .info-prose :global(li > a[href$=".pdf"]:hover)::before,
+  .info-prose :global(li > a[href*="drive.google.com"]:hover)::before,
+  .info-prose :global(li > a[href$=".docx"]:hover)::before,
+  .info-prose :global(li > a[href$=".xlsx"]:hover)::before {
+    background-color: var(--plum);
+  }
+
+  /* Tighten list spacing on POC-style download lists so the icons + lines
+     read as a list rather than dense prose. */
+  .info-prose :global(ul) :global(li) {
+    margin-bottom: 4px;
+  }
+
+  /* MapRun (and similar) logo inside info-page prose. Floats LEFT of
+     the surrounding text on wider screens so it sits directly next to
+     the paragraph (rather than stranded on the right side of the prose
+     column, which Kyle reported looked disconnected). Text wraps around
+     it newspaper-style. Stacks above the text on phones. The size is
+     driven by the inline width/height attributes on the <img> so
+     different pages can use different sizes. */
+  .info-prose :global(.maprun-mark) {
+    float: left;
+    margin: 4px 24px 12px 0;
+    border-radius: 18%;
+    box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.3);
+  }
+  @media (max-width: 600px) {
+    .info-prose :global(.maprun-mark) {
+      float: none;
+      display: block;
+      margin: 4px 0 16px 0;
+    }
+  }
+
+  /* App Store + Google Play download buttons */
+  .info-prose :global(.store-buttons) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 24px 0 28px 0;
+    clear: both;
+  }
+  .info-prose :global(.store-btn) {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px 10px 16px;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 10px;
+    text-decoration: none;
+    transition: background .18s ease, transform .18s ease;
+    min-width: 200px;
+  }
+  .info-prose :global(.store-btn:hover) {
+    background: var(--navy);
+    color: var(--paper);
+    transform: translateY(-2px);
+    border-color: var(--navy);
+  }
+  .info-prose :global(.store-btn-icon) {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+  }
+  .info-prose :global(.store-btn-copy) {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .info-prose :global(.store-btn-eyebrow) {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(244, 237, 224, 0.75);
+    margin-bottom: 2px;
+  }
+  .info-prose :global(.store-btn-name) {
+    font-family: var(--ff-display);
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--paper);
+  }
+
+  /* Tables, horizontally scrollable inside their column when narrow,
+     so a wide table (MapRun courses, POC courses) never overflows under
+     the sticky sidebar. */
+  .info-prose :global(table) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 18px 0 24px 0;
+    font-size: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .info-prose :global(thead) { background: var(--paper-2); }
+  .info-prose :global(th) {
+    text-align: left;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ink);
+    vertical-align: top;
+  }
+  .info-prose :global(td) {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    line-height: 1.45;
+    color: var(--ink);
+    min-width: 120px;
+  }
+  .info-prose :global(tr:hover td) { background: var(--paper-2); }
+  .info-prose :global(table a) { word-break: break-word; }
+
+  .info-page-aside {
+    background: var(--paper-2);
+    padding: 18px;
+    border-left: 3px solid var(--plum);
+    position: sticky;
+    top: 24px;
+    /* Cap height + scroll internally so a very long sidebar can't run
+       past the page itself; also avoids any visual collision with wide
+       tables in the prose column. */
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .aside-label {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 12px 0;
+  }
+  .info-page-aside ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex; flex-direction: column;
+    gap: 6px;
+  }
+  .info-page-aside a {
+    display: block;
+    padding: 4px 0;
+    font-size: 14px;
+    color: var(--ink);
+    border-bottom: 1px solid transparent;
+    transition: color .18s, border-color .18s;
+  }
+  .info-page-aside a:hover { color: var(--plum); border-bottom-color: var(--plum); }
+
+  @media (max-width: 720px) {
+    .info-page-body-wrap { grid-template-columns: 1fr; }
+    .info-page-aside { position: static; }
+  }
+</style>

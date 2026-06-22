@@ -1,0 +1,514 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const maps = await getCollection('maps');
+  return maps
+    .filter(m => !m.data.draft)
+    .map(m => ({ params: { slug: m.id }, props: { map: m } }));
+}
+
+const { map } = Astro.props;
+const { Content } = await render(map);
+
+// Find events that have used this map (loose match, same town or same name)
+const allEvents = await getCollection('events');
+const relatedEvents = allEvents.filter(e => {
+  if (e.data.hidden) return false;
+  const t = map.data.title.toLowerCase();
+  return e.data.location?.toLowerCase().includes(t) ||
+         e.data.title.toLowerCase().includes(t) ||
+         e.id.toLowerCase().includes(map.id.toLowerCase());
+}).sort((a, b) => b.data.date.getTime() - a.data.date.getTime()).slice(0, 5);
+
+const terrainLabel: Record<string, string> = {
+  urban: 'Urban',
+  parkland: 'Parkland',
+  forest: 'Forest',
+  moorland: 'Moorland',
+  mtbo: 'Mountain bike',
+  mixed: 'Mixed terrain',
+};
+
+const fmtShort = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+const coords = map.data.coords;
+const mapsLink = coords
+  ? `https://www.google.com/maps/place/${coords.lat},${coords.lng}/@${coords.lat},${coords.lng},14z`
+  : null;
+
+// Per-map RouteGadget URL resolution. RouteGadget itself doesn't have one
+// URL per venue - only per event - so when the map record doesn't pin a
+// specific URL we look at the most recent event held at this venue and
+// reuse the deepest-linked RG URL we can find (either the event's
+// top-level routeGadgetUrl or any attachment whose URL points at RG).
+// Falls back to the public RG index only as a last resort.
+function findEventRouteGadget(event: typeof relatedEvents[number] | undefined): string | undefined {
+  if (!event) return undefined;
+  if (event.data.routeGadgetUrl) return event.data.routeGadgetUrl;
+  // Scan the post-event "results" links for the first RouteGadget URL with
+  // a fragment ID (#NNN) - that's the specific RG entry for this event.
+  const rgResult = event.data.results?.find(r =>
+    typeof r.url === 'string' &&
+    r.url.includes('routegadget.co.uk') &&
+    r.url.includes('#')
+  );
+  return rgResult?.url;
+}
+// Walk through related events newest-first until we find one with a
+// specific RouteGadget URL.
+const inheritedRgUrl = relatedEvents.map(findEventRouteGadget).find(Boolean);
+const routeGadgetUrl = map.data.routeGadgetUrl
+  ?? inheritedRgUrl
+  ?? "https://www.cornwall.routegadget.co.uk/rg2/";
+const hasSpecificRg = !!(map.data.routeGadgetUrl || inheritedRgUrl);
+---
+<Layout
+  title={`${map.data.title}, Map, KERNO`}
+  description={map.data.summary}
+>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Hero -->
+  <section class="map-hero">
+    <div class="map-hero-wrap">
+      <a class="back-link" href="/maps">← All maps</a>
+      <p class="eyebrow">{terrainLabel[map.data.terrain]}{map.data.nearTown && <> · {map.data.nearTown}</>}</p>
+      <h1>{map.data.title}</h1>
+      <p class="map-summary">{map.data.summary}</p>
+
+      <dl class="map-key-facts">
+        <div>
+          <dt>Terrain</dt>
+          <dd>{terrainLabel[map.data.terrain]}</dd>
+        </div>
+        {/* Scale intentionally not displayed - the map scale can vary
+            event-to-event depending on the format (urban score vs forest
+            classic vs Street-O) and we don't want a stale value here to
+            mislead visitors. The CMS field still exists for committee
+            reference. */}
+        {map.data.contourInterval && <div><dt>Contour interval</dt><dd>{map.data.contourInterval}</dd></div>}
+        {map.data.surveyYear && <div><dt>Last surveyed</dt><dd>{map.data.surveyYear}</dd></div>}
+        {map.data.surveyor && <div><dt>Surveyor</dt><dd>{map.data.surveyor}</dd></div>}
+        {map.data.permanentCourse && (
+          <div>
+            <dt>Permanent course</dt>
+            <dd>{map.data.permanentCourseUrl ? 'Yes' : 'Yes (in development)'}</dd>
+          </div>
+        )}
+      </dl>
+    </div>
+  </section>
+
+  {/* Prominent POC button when the area has a live GoOrienteering entry.
+      British Orienteering hosts the actual course details - we just
+      send visitors there so the look-and-feel matches Mapped Areas
+      (single button out, no map image hosted locally). */}
+  {map.data.permanentCourseUrl && (
+    <section class="map-poc" aria-label="Permanent course">
+      <div class="map-poc-wrap">
+        <p class="map-poc-eyebrow">Permanent course</p>
+        <p class="map-poc-body">
+          This area has a Permanent Orienteering Course you can run any time of year.
+          Course details, map and start point are on British Orienteering's GoOrienteering site.
+        </p>
+        <a class="map-poc-btn" href={map.data.permanentCourseUrl} rel="noopener" target="_blank">
+          View Permanent Course on GoOrienteering
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── RouteGadget preview
+       Embed the live RouteGadget viewer inline so visitors can see the
+       actual orienteering map without leaving the page. The map content
+       is hosted on RouteGadget (which already has the surveyors'
+       permission to display it), so the KERNO site is not redistributing
+       the map image itself - it's just framing the existing public
+       viewer. Only shown when we have a specific RG URL for this venue
+       (the public RG index isn't useful to embed). -->
+  {hasSpecificRg && (
+    <section class="map-preview" aria-label="Map preview on RouteGadget">
+      <div class="map-preview-wrap">
+        <div class="map-preview-head">
+          <p class="eyebrow">Map preview</p>
+          <p class="map-preview-note">
+            Live view from RouteGadget - click and drag to pan, scroll to zoom. KERNO doesn't host the map itself; it's loaded from
+            <a href={routeGadgetUrl} rel="noopener" target="_blank">RouteGadget</a> where the surveyors have agreed to public display.
+          </p>
+        </div>
+        <iframe
+          src={routeGadgetUrl}
+          title={`${map.data.title} on RouteGadget`}
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          class="map-preview-frame"
+        ></iframe>
+        <noscript>
+          <p class="map-preview-fallback">
+            The map preview needs JavaScript. <a href={routeGadgetUrl} rel="noopener" target="_blank">Open on RouteGadget instead →</a>
+          </p>
+        </noscript>
+
+        <div class="map-preview-disclaimer">
+          <p><strong>Why is the map shown via RouteGadget?</strong></p>
+          <p>
+            KERNO doesn't display orienteering maps on this site because they're derived from Ordnance Survey data under licence restrictions. The map above is loaded from <a href="https://www.cornwall.routegadget.co.uk/rg2/" rel="noopener" target="_blank">RouteGadget</a>, which already has permission from the surveyors to display each map publicly. We're just embedding their viewer - the map content isn't hosted here.
+          </p>
+          <p>
+            <strong>Important:</strong> possession or existence of a map does not imply right of access to the area for orienteering or for any other purpose. Permission must be obtained from the landowner.
+          </p>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Body and aside -->
+  <section class="map-body">
+    <div class="map-body-wrap">
+      <div class="map-prose">
+        <Content />
+      </div>
+      <aside class="map-meta">
+        <div class="meta-block meta-block--rg">
+          <p class="meta-label">Routes &amp; results</p>
+          <p class="meta-rg-copy">
+            {hasSpecificRg
+              ? <>See route choices, splits and previous events at <strong>{map.data.title}</strong> on RouteGadget.</>
+              : <>KERNO doesn't publish the orienteering map itself (copyright sits with the individual surveyors). Members can find routes and previous events on RouteGadget.</>}
+          </p>
+          <a class="meta-rg-cta" href={routeGadgetUrl} rel="noopener" target="_blank">
+            {hasSpecificRg ? "Open this map on RouteGadget →" : "Open RouteGadget →"}
+          </a>
+        </div>
+
+        {coords && (
+          <div class="meta-block">
+            <p class="meta-label">Location</p>
+            <p class="meta-coord mono">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
+            <ul class="map-links">
+              <li><a href={mapsLink} rel="noopener">Google Maps →</a></li>
+            </ul>
+          </div>
+        )}
+
+        {relatedEvents.length > 0 && (
+          <div class="meta-block">
+            <p class="meta-label">Recent events here</p>
+            <ul class="related-events">
+              {relatedEvents.map(e => (
+                <li>
+                  <a href={`/events/${e.id}`}>
+                    <time>{fmtShort(e.data.date)}</time>
+                    <span>{e.data.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .mono { font-family: var(--ff-mono); }
+
+  .map-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(28px, 4vw, 48px) var(--pad-x) clamp(36px, 4vw, 56px);
+  }
+  .map-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+
+  .back-link {
+    display: inline-block;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 28px;
+    transition: color .18s ease;
+  }
+  .back-link:hover { color: var(--plum); }
+
+  .map-hero .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 16px;
+  }
+  .map-hero .eyebrow::before { background: var(--plum); }
+
+  .map-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(32px, 4.5vw, 56px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 14px 0;
+    color: var(--ink);
+  }
+  .map-summary {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0 0 28px 0;
+  }
+
+  .map-key-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 18px 28px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+  .map-key-facts dt {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 4px 0;
+  }
+  .map-key-facts dd {
+    font-size: 15px;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  /* ─────────────────────────── Body */
+  .map-body {
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+  }
+  .map-body-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: clamp(32px, 4vw, 56px);
+    align-items: start;
+  }
+
+  .map-prose :global(h2) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2vw, 28px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--navy);
+    margin: 32px 0 14px 0;
+  }
+  .map-prose :global(h2:first-child) { margin-top: 0; }
+  .map-prose :global(p) {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin: 0 0 16px 0;
+    max-width: 65ch;
+  }
+
+  .map-meta {
+    display: flex; flex-direction: column; gap: 20px;
+    position: sticky; top: 24px;
+  }
+  .meta-block {
+    padding: 18px;
+    background: var(--paper-2);
+    border-left: 3px solid var(--plum);
+  }
+  .meta-block--rg {
+    background: var(--navy-deep);
+    border-left-color: var(--gold);
+  }
+  .meta-block--rg .meta-label { color: var(--gold-bright); }
+  .meta-rg-copy {
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(244, 237, 224, 0.85);
+    margin: 0 0 14px 0;
+  }
+  .meta-rg-cta {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--ink);
+    padding: 10px 18px;
+    font-family: var(--ff-body);
+    font-size: 13px;
+    font-weight: 500;
+    transition: background .18s ease, color .18s ease;
+  }
+  .meta-rg-cta:hover { background: var(--paper); color: var(--ink); }
+  .meta-block .meta-label {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 10px 0;
+  }
+  .meta-coord { font-size: 14px; color: var(--ink); margin: 0 0 8px 0; }
+  .map-links { list-style: none; padding: 0; margin: 0; }
+  .map-links a {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    color: var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 1px;
+  }
+  .map-links a:hover { color: var(--plum); border-color: var(--plum); }
+
+  .related-events { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .related-events a {
+    display: flex; flex-direction: column; gap: 2px;
+    color: var(--ink);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .related-events li:last-child a { border-bottom: 0; }
+  .related-events time {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+  }
+  .related-events span {
+    font-size: 14px; line-height: 1.3;
+  }
+  .related-events a:hover span { color: var(--plum); }
+
+  @media (max-width: 880px) {
+    .map-body-wrap { grid-template-columns: 1fr; }
+    .map-meta { position: static; }
+  }
+
+  /* ─── RouteGadget preview ──────────────────────────────────────
+     POC button: appears between the hero and the RouteGadget preview
+     when a permanent-course URL is set on the map. A single CTA-style
+     button pointing visitors at BOF's GoOrienteering site. */
+  .map-poc {
+    padding: clamp(20px, 3vw, 36px) var(--pad-x);
+    background: linear-gradient(180deg, var(--paper) 0%, #f3eddc 100%);
+  }
+  .map-poc-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    text-align: center;
+  }
+  .map-poc-eyebrow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    margin: 0 0 0.5rem;
+  }
+  .map-poc-body {
+    font-size: 1rem;
+    color: var(--ink-mute);
+    max-width: 52ch;
+    margin: 0 auto 1.25rem;
+    line-height: 1.5;
+  }
+  .map-poc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1.5rem;
+    background: var(--navy);
+    color: var(--paper);
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: background 120ms ease, transform 120ms ease;
+  }
+  .map-poc-btn:hover {
+    background: #061a36;
+    transform: translateY(-1px);
+  }
+
+  /*
+     Inline iframe of the live RouteGadget viewer. Sits between the
+     hero and the body. Sized tall enough that the RG controls don't
+     dominate the orienteering map area itself. */
+  .map-preview {
+    padding: 0 var(--pad-x) clamp(28px, 4vw, 48px);
+    background: var(--paper);
+  }
+  .map-preview-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  .map-preview-head {
+    margin-bottom: 14px;
+  }
+  .map-preview-head .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 6px;
+  }
+  .map-preview-note {
+    margin: 0;
+    font-size: 14px;
+    color: var(--ink-soft);
+    max-width: 70ch;
+  }
+  .map-preview-note a {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+  }
+  .map-preview-frame {
+    width: 100%;
+    height: clamp(420px, 60vh, 720px);
+    border: 1px solid var(--rule);
+    background: var(--paper-2);
+    display: block;
+  }
+  .map-preview-fallback {
+    padding: 18px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  /* Yellow disclaimer box under the iframe, explaining the OS licensing
+     reasoning and the landowner-permission caveat. Same visual style as
+     the per-event disclaimers for consistency. */
+  .map-preview-disclaimer {
+    margin-top: 18px;
+    background: #fff4c2;
+    border: 1px solid #e8c952;
+    border-left: 4px solid #d8a800;
+    border-radius: 4px;
+    padding: clamp(14px, 2vw, 20px) clamp(16px, 2.5vw, 24px);
+    color: var(--ink);
+  }
+  .map-preview-disclaimer p {
+    margin: 0 0 0.6em;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .map-preview-disclaimer p:last-child { margin-bottom: 0; }
+  .map-preview-disclaimer strong { color: var(--ink); }
+  .map-preview-disclaimer a {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+</style>

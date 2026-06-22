@@ -1,0 +1,39 @@
+{
+  "_comment": "Text content for the /about page. Edited via the CMS at /admin → Site settings → About page text. Body fields support markdown - paragraphs (blank line between them), [link text](/url), **bold**, *italics*.",
+  "hero": {
+    "eyebrow": "About KERNO",
+    "heading": "A small club running a lot of events.",
+    "lede": "A friendly club running many events throughout the year.\nKERNO has been organising orienteering across Cornwall since the 1960’s and is one of the oldest orienteering clubs in the UK. We're a member club of British Orienteering and the South West Orienteering Association, run entirely by volunteers, and welcome anyone who wants to give the sport a try."
+  },
+  "whatWeDo": {
+    "eyebrow": "What we do",
+    "heading": "Twelve to fifteen events a year, plus training.",
+    "body": "Varied terrain events, club nights and social opportunities.\nOur calendar mixes midweek urban and Snook-O events through to weekend terrain events across the moors and forests around Cornwall. We also run a steady programme of training and coaching sessions, from map-symbol workshops to night-orienteering technique, compass work and route choice practice.\nIf we're not putting on an event, you can usually find our members taking part in other orienteering events. KERNO members also regularly travel to British Orienteering’s major events, including the British Championship events and even further afield, with many regulars taking part in the City Race Euro Tour urban series, an annual calendar of urban races across Europe.  \n\nIf we're not putting on an event, we're at someone else's, KERNO members regularly travel to BO Major events, the JK, the British Champs, and the City Race Euro Tour."
+  },
+  "whereWeCover": {
+    "eyebrow": "Where we cover",
+    "heading": "Cornwall to Cornwall, with the moors in between.",
+    "body": "Across the West Pennine Moors from Earby in the east to the A666 in the west, KERNO maps and runs events across Cornwall, Cornwall, Cornwall, Cornwall, Darwen and Cornwall, plus a handful of venues further afield in the Forest of Bowland and the South Pennines.\nThe map library has every venue we currently use, with images of the actual orienteering map and notes on access, parking, and terrain.\n"
+  },
+  "committee": {
+    "eyebrow": "The committee",
+    "heading": "Run by volunteers, every one of us.",
+    "body": "KERNO has no paid staff. Every event, every map survey, every results upload, every newsletter and every training session happens because someone on the committee or in the membership puts the time in. We're always looking for help, if you can plan, control, organise registration, photograph, or run a social media account, please [get in touch](/contacts).",
+    "ctaLabel": "Meet the committee",
+    "ctaUrl": "/contacts"
+  },
+  "membership": {
+    "eyebrow": "Become a member",
+    "heading": "Join KERNO.",
+    "body": "If you orienteer with us regularly, you can save money on your entry fees by joining the club. In addition to saving money, you're also covered by Public Liability Insurance, have access to Member Discounts and insured, and your results count toward both the British Orienteering ranking system and our own club awards. Membership is a single annual fee that covers KERNO, NWOA and British Orienteering.",
+    "ctaLabel": "Membership details",
+    "ctaUrl": "/membership"
+  },
+  "firstTime": {
+    "eyebrow": "First time?",
+    "heading": "Try an event and see why we love it!",
+    "body": "Try an event and see why we love it!\nWhether it’s a low-key Wednesday Street O events, or a weekend terrain one, all of our events are friendly and welcoming. KERNO members will talk you through anything you may need to know or may be unsure of, especially if it's your first time, and the emphasis at all our events is for those taking part to have enjoyed themselves.",
+    "ctaLabel": "Newcomer guide",
+    "ctaUrl": "/newcomers"
+  }
+}

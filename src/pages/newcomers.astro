@@ -1,0 +1,453 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+// All copy on this page lives in src/data/newcomers-text.json so the
+// committee can edit every word via the CMS (Site settings → Newcomers
+// page). The page reads the JSON and renders into the same visual
+// layout. Body fields that may contain links/bold are rendered as
+// inline markdown via marked.parseInline().
+import text from '../data/newcomers-text.json';
+// Hero photo is CMS-editable like every other top-level page - see
+// /admin → Site settings → Page hero photos → Newcomers page hero.
+// Previously this template hardcoded /assets/photos/training-moorland.jpg
+// which meant Andy's CMS uploads silently went nowhere. The hero now
+// reads from page-heroes.json with normaliseImagePath defending against
+// any path quirks Decap might write.
+import heroes from '../data/page-heroes.json';
+import { normaliseImagePath } from '../lib/image-path';
+const newcomersHero = (heroes as Record<string, { image?: string; alt?: string }>).newcomers ?? {};
+const newcomersHeroSrc = normaliseImagePath(newcomersHero.image);
+const newcomersHeroAlt = newcomersHero.alt ?? '';
+
+import { isEventUpcoming } from '../lib/event-state';
+const now = new Date();
+const upcoming = (await getCollection('events'))
+  .filter(e => isEventUpcoming(e.data, now) && !e.data.cancelled && !e.data.hidden)
+  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime())
+  .slice(0, 3);
+
+const fmtDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+// Render a string of markdown to inline HTML (no <p> wrapper). Used for
+// the FAQ answers and the body half of each first-event step, both of
+// which contain inline links the editor needs to be able to set.
+marked.setOptions({ gfm: true, breaks: false });
+const inline = (s: string) => marked.parseInline(s ?? '');
+---
+<Layout
+  title="Newcomers, Cornwall Orienteering Club"
+  description="Never tried orienteering? Here's how it works, what to bring, and how to come to your first KERNO event."
+>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Hero with photo background -->
+  <section class="newcomer-hero">
+    <div class="newcomer-hero-backdrop" aria-hidden="true">
+      <img src={newcomersHeroSrc} alt={newcomersHeroAlt} loading="eager" fetchpriority="high">
+    </div>
+    <div class="newcomer-hero-wrap">
+      <p class="eyebrow rise d-1">{text.hero.eyebrow}</p>
+      <h1 class="rise d-2">{text.hero.heading}</h1>
+      <div class="newcomer-lede rise d-3" set:html={marked.parse(text.hero.lede ?? '')} />
+      <div class="newcomer-cta-row rise d-4">
+        <a class="btn btn-primary" href={text.hero.primaryCtaUrl}>{text.hero.primaryCtaLabel} <span class="arrow">→</span></a>
+        <a class="btn btn-ghost" href={text.hero.secondaryCtaUrl}>{text.hero.secondaryCtaLabel}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── How it works -->
+  <section class="info-block">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.howItWorks.eyebrow}</p>
+      <h2>{text.howItWorks.heading}</h2>
+
+      <div class="info-grid">
+        {text.howItWorks.items.map(item => (
+          <div>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── What to bring -->
+  <section class="info-block alt">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.whatToBring.eyebrow}</p>
+      <h2>{text.whatToBring.heading}</h2>
+      <div class="kit-grid">
+        {text.whatToBring.items.map(item => (
+          <div class="kit-item">
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Your first event -->
+  <section class="info-block">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.yourFirstEvent.eyebrow}</p>
+      <h2>{text.yourFirstEvent.heading}</h2>
+      <ol class="steps-list">
+        {text.yourFirstEvent.steps.map(step => (
+          <li>
+            <strong>{step.lead}</strong> <span set:html={inline(step.body)} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  {upcoming.length > 0 && (
+    <section class="next-events">
+      <div class="next-events-wrap">
+        <p class="eyebrow">{text.comingUp.eyebrow}</p>
+        <h2>{text.comingUp.heading}</h2>
+        <ul class="next-events-list">
+          {upcoming.map(event => (
+            <li>
+              <a class="next-event-card" href={`/events/${event.id}`}>
+                <time>{fmtDate(event.data.date)}</time>
+                <h3>{event.data.title}</h3>
+                <p>{event.data.summary}</p>
+                <span class="read-more">Event details →</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── FAQ -->
+  <section id="faq" class="info-block">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.faq.eyebrow}</p>
+      <h2>{text.faq.heading}</h2>
+
+      <div class="faq-list">
+        {text.faq.items.map(item => (
+          <details>
+            <summary>{item.question}</summary>
+            <p set:html={inline(item.answer)}></p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  /* ─────────────────────────── Hero with photo */
+  .newcomer-hero {
+    position: relative;
+    isolation: isolate;
+    color: var(--paper);
+    padding: clamp(56px, 7vw, 96px) var(--pad-x) clamp(56px, 6vw, 88px);
+  }
+  .newcomer-hero-backdrop {
+    position: absolute; inset: 0;
+    overflow: hidden;
+    z-index: -1;
+  }
+  .newcomer-hero-backdrop img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    object-position: center 55%;
+    filter: contrast(1.05) saturate(0.95);
+  }
+  .newcomer-hero-backdrop::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(125deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.78) 55%, rgba(20, 20, 20, 0.68) 100%),
+      radial-gradient(900px 500px at 80% 20%, rgba(138, 101, 0, 0.18), transparent 65%);
+  }
+  .newcomer-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .newcomer-hero .eyebrow { color: var(--gold); margin-bottom: 22px; }
+  .newcomer-hero .eyebrow::before { background: var(--gold); }
+  .newcomer-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 22px 0;
+    color: var(--paper);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    max-width: 18ch;
+  }
+  .newcomer-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: rgba(240, 243, 247, 0.88);
+    max-width: 60ch;
+    margin: 0 0 30px 0;
+  }
+  /* Inline link inside the lede paragraph. The lede is rendered via
+     set:html so this needs :global(). Hero is dark, so use the bright
+     gold + paper underline treatment (same as the photo-hero variant in
+     Layout.astro) for proper contrast. */
+  .newcomer-lede :global(a) {
+    color: var(--gold-bright);
+    text-decoration: underline;
+    text-decoration-color: var(--paper);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .newcomer-lede :global(a:hover),
+  .newcomer-lede :global(a:focus-visible) {
+    color: var(--paper);
+    text-decoration-color: var(--gold-bright);
+  }
+  .newcomer-cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .newcomer-cta-row .btn-ghost {
+    color: var(--paper);
+    border-color: var(--paper);
+  }
+  .newcomer-cta-row .btn-ghost:hover { background: var(--paper); color: var(--ink); }
+
+  /* ─────────────────────────── Info blocks */
+  .info-block {
+    padding: clamp(48px, 5vw, 80px) var(--pad-x);
+  }
+  .info-block.alt { background: var(--paper-2); }
+  .info-wrap { max-width: var(--max-w); margin: 0 auto; }
+
+  .info-block .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .info-block .eyebrow::before { background: var(--plum); }
+
+  .info-block h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(28px, 3.5vw, 44px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 36px 0;
+    max-width: 28ch;
+  }
+  .info-block h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 21px;
+    line-height: 1.2;
+    color: var(--ink);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 8px 0;
+  }
+  .info-block p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+  }
+  .info-block p:last-child { margin-bottom: 0; }
+  .info-block a { color: var(--navy); text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+  .info-block a:hover { color: var(--plum); }
+
+  /* ─────────────────────────── Three-column "How it works" */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 28px;
+  }
+
+  /* ─────────────────────────── Kit grid */
+  .kit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 28px 32px;
+  }
+  .kit-item h3 {
+    border-top: 2px solid var(--plum);
+    padding-top: 12px;
+    margin-bottom: 8px;
+  }
+
+  /* ─────────────────────────── Steps list */
+  .steps-list {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 18px;
+    max-width: 65ch;
+  }
+  .steps-list li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 56px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+  .steps-list li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: -2px;
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .steps-list strong { color: var(--ink); font-weight: 500; }
+
+  /* ─────────────────────────── Next events */
+  .next-events {
+    background: var(--navy-deep);
+    color: var(--paper);
+    padding: clamp(48px, 5vw, 72px) var(--pad-x);
+    border-top: 4px solid var(--gold);
+  }
+  .next-events-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .next-events .eyebrow { color: var(--gold-bright); margin-bottom: 14px; }
+  .next-events .eyebrow::before { background: var(--gold-bright); }
+  .next-events h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.05;
+    color: var(--paper);
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    margin: 0 0 28px 0;
+  }
+  .next-events-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .next-event-card {
+    display: flex; flex-direction: column;
+    gap: 8px;
+    padding: 22px 22px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--paper);
+    transition: background .18s ease;
+    height: 100%;
+  }
+  .next-event-card:hover { background: rgba(255, 255, 255, 0.12); }
+  .next-event-card time {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-bright);
+  }
+  .next-event-card h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    color: var(--paper);
+    margin: 0;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+  }
+  .next-event-card p {
+    font-size: 14px;
+    line-height: 1.45;
+    color: rgba(240, 243, 247, 0.78);
+    margin: 0;
+  }
+  .read-more {
+    margin-top: auto;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-bright);
+  }
+
+  /* ─────────────────────────── FAQ */
+  .faq-list {
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    max-width: 70ch;
+  }
+  .faq-list details {
+    border-bottom: 1px solid var(--rule);
+    padding: 18px 0;
+  }
+  .faq-list summary {
+    list-style: none;
+    cursor: pointer;
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.3;
+    color: var(--ink);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    padding-right: 32px;
+    position: relative;
+  }
+  .faq-list summary::-webkit-details-marker { display: none; }
+  .faq-list summary::after {
+    content: "+";
+    position: absolute;
+    right: 0; top: -2px;
+    font-family: var(--ff-mono);
+    font-size: 22px;
+    color: var(--gold-muted);
+    transition: transform .2s ease;
+  }
+  .faq-list details[open] summary::after { content: "−"; color: var(--plum); }
+  .faq-list summary:hover { color: var(--plum); }
+  .faq-list p {
+    margin: 14px 0 0 0;
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  /* Inline links inside FAQ answers and "Your first event" step bodies.
+     These are rendered via `set:html` from the inline() markdown helper,
+     and `set:html` content doesn't receive Astro's scoped-component
+     attribute - so the `.info-block a` rule above silently fails to
+     match. Andy reported "More on membership" reading as plain text.
+     Using :global() bypasses the scoping and applies the rule to the
+     injected HTML. Pattern matches all other prose contexts (navy + 2px
+     gold underline + magenta on hover). */
+  .faq-list p :global(a),
+  .info-block p :global(a),
+  .info-block li :global(a),
+  .info-block .step-body :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .faq-list p :global(a:hover),
+  .faq-list p :global(a:focus-visible),
+  .info-block p :global(a:hover),
+  .info-block li :global(a:hover) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+</style>

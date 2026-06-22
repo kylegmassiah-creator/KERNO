@@ -1,0 +1,306 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { getCollection } from 'astro:content';
+import text from '../data/news-text.json';
+
+// ─────── Latest news. Featured articles pinned to the top, then the
+//        rest by date. The featured-card slot at the top of the page
+//        prefers a manually-featured article if one exists, else the
+//        most recent.
+const allNews = (await getCollection('news'))
+  .filter(n => !n.data.draft)
+  .sort((a, b) => {
+    // 1. Featured articles always above non-featured
+    const fa = a.data.featured ? 1 : 0;
+    const fb = b.data.featured ? 1 : 0;
+    if (fa !== fb) return fb - fa;
+    // 2. Then articles with an explicit `order` number, lowest first.
+    //    Articles with no order fall back to date.
+    const oa = a.data.order;
+    const ob = b.data.order;
+    if (oa != null && ob != null) return oa - ob;
+    if (oa != null) return -1;
+    if (ob != null) return 1;
+    // 3. Otherwise newest-first by date
+    return b.data.date.getTime() - a.data.date.getTime();
+  });
+
+const featured = allNews[0];
+const rest = allNews.slice(1);
+
+// Dates aren't shown on the news listing - they're kept in the CMS
+// (and still drive the default sort order) but hidden from visitors.
+// Article-detail pages still display the full date.
+---
+<Layout
+  title="News, Cornwall Orienteering Club"
+  description="Latest news, race reports and updates from Cornwall Orienteering Club."
+>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Page hero -->
+  <PageHero
+    page="news"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  />
+
+  <!-- ─────────────────────────── Featured (most recent) -->
+  {featured && (
+    <section class="news-featured">
+      <div class="featured-wrap">
+        <a class="featured-link" href={`/news/${featured.id}`}>
+          {featured.data.heroImage && (
+            <div class="featured-image">
+              <img src={featured.data.heroImage} alt={featured.data.heroImageAlt || featured.data.title}>
+            </div>
+          )}
+          <div class="featured-body">
+            <p class="eyebrow">{text.featuredEyebrow}</p>
+            <h2>{featured.data.title}</h2>
+            <p class="featured-summary">{featured.data.summary}</p>
+            <span class="featured-read">Read the story →</span>
+          </div>
+        </a>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Earlier articles, newest first -->
+  {rest.length > 0 && (
+    <section class="news-archive">
+      <div class="news-archive-wrap">
+        <div class="sec-head">
+          <p class="eyebrow">Earlier</p>
+          <span class="sec-count">{rest.length} article{rest.length === 1 ? '' : 's'}</span>
+        </div>
+        <ul class="news-list">
+          {rest.map(item => (
+            <li>
+              <a class="news-row" href={`/news/${item.id}`}>
+                <div class="news-row-body">
+                  <h4>{item.data.title}</h4>
+                  <p class="news-row-summary">{item.data.summary}</p>
+                </div>
+                <span class="news-row-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  {!featured && (
+    <section class="news-empty">
+      <div class="news-archive-wrap">
+        <p class="empty">No news articles yet. Watch this space.</p>
+      </div>
+    </section>
+  )}
+
+</main>
+
+</Layout>
+
+<style>
+  /* ─────────────────────────── Page hero (matches events page) */
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(36px, 4vw, 60px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 24ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  /* ─────────────────────────── Featured */
+  .news-featured {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(40px, 5vw, 64px) var(--pad-x) clamp(20px, 3vw, 32px);
+  }
+  .featured-link {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: clamp(28px, 3vw, 48px);
+    align-items: stretch;
+    color: var(--ink);
+  }
+  .featured-image {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--navy);
+  }
+  .featured-image img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .6s cubic-bezier(.2,.6,.2,1);
+  }
+  .featured-link:hover .featured-image img { transform: scale(1.04); }
+
+  .featured-body { display: flex; flex-direction: column; padding: 8px 0; }
+  .featured-body .eyebrow { color: var(--gold-muted); margin-bottom: 16px; }
+  .featured-body .eyebrow::before { background: var(--plum); }
+  .featured-date {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 10px;
+  }
+  .featured-body h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    margin: 0 0 14px 0;
+    color: var(--ink);
+    transition: color .18s ease;
+  }
+  .featured-link:hover .featured-body h2 { color: var(--navy); }
+  .featured-summary {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 0 0 22px 0;
+    max-width: 50ch;
+  }
+  .featured-read {
+    margin-top: auto;
+    align-self: flex-start;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 4px;
+    transition: color .18s, border-color .18s;
+  }
+  .featured-link:hover .featured-read { color: var(--plum); border-color: var(--plum); }
+
+  /* ─────────────────────────── Archive */
+  .news-archive {
+    background: var(--paper-2);
+    padding: clamp(40px, 5vw, 64px) 0;
+  }
+  .news-archive-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 0 var(--pad-x);
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .sec-count {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .news-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .news-list li { border-bottom: 1px solid var(--rule); }
+  .news-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: baseline;
+    padding: 16px 6px;
+    color: var(--ink);
+    transition: background .18s ease, padding-left .18s ease;
+  }
+  .news-row:hover {
+    background: var(--paper);
+    padding-left: 14px;
+  }
+  .news-row-date {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--gold-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .news-row-body { min-width: 0; }
+  .news-row-body h4 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 4px 0;
+    color: var(--ink);
+  }
+  .news-row:hover .news-row-body h4 { color: var(--navy); }
+  .news-row-summary {
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .news-row-arrow {
+    font-family: var(--ff-mono);
+    font-size: 16px;
+    color: var(--ink-mute);
+    transition: color .18s ease, transform .18s ease;
+  }
+  .news-row:hover .news-row-arrow { color: var(--gold-muted); transform: translateX(4px); }
+
+  .empty {
+    color: var(--ink-soft);
+    padding: 48px 0;
+    text-align: center;
+  }
+
+  /* ─────────────────────────── Responsive */
+  @media (max-width: 880px) {
+    .featured-link { grid-template-columns: 1fr; gap: 24px; }
+    .featured-image { aspect-ratio: 16 / 10; }
+  }
+  @media (max-width: 720px) {
+    .news-row {
+      gap: 8px 16px;
+    }
+    .news-row-body h4 { font-size: 17px; }
+    .news-row-arrow { display: none; }
+  }
+</style>

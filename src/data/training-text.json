@@ -1,0 +1,40 @@
+{
+  "_comment": "Text content for the /training page. Edited via the CMS at /admin → Site settings → Training page text. Body fields support markdown (links, bold, italics, paragraphs).",
+  "hero": {
+    "eyebrow": "Training",
+    "heading": "Get better at the bits you find hard.",
+    "lede": "KERNO runs a regular programme of training sessions for members, informal map-reading help for newcomers, technique sessions for intermediate orienteers, and night-orienteering practice through the winter. Cath Wilson, our lead coach, plans the programme each year."
+  },
+  "forNewcomers": {
+    "eyebrow": "Everyone is welcome",
+    "heading": "Map symbols, contours, route choice.",
+    "body": "Throughout the year, we hold KERNO Club Nights which focus on different parts of the sport. These take place across Cornwall, and where possible, will always be based from a social hub to enable those wanting a chance for some food and drink afterwards."
+  },
+  "forExperienced": {
+    "eyebrow": "KERNO Club Nights",
+    "heading": "Varied sessions",
+    "body": "KERNO Club Nights usually take place on a Wednesday evening when the events calendar allows, with more in-depth coaching sessions occurring quarterly of a weekend, in more technical terrain. \nTraining is varied and led by club coaches, and often works on understanding map symbols and contours, practicing route choice, compass work, and also other parts of the sport such as Planning and Organising events, using Purple Pen course setting tools and Maprun course creation. There is no charge for the training sessions."
+  },
+  "selfLed": {
+    "eyebrow": "Self-led practice",
+    "heading": "Things you can work on alone.",
+    "resources": [
+      {
+        "title": "Anytime orienteering",
+        "body": "Permanent courses and MapRun loops in local parks let you practice navigation on your own schedule. [See the list of permanent courses](/information/anytime-orienteering)."
+      },
+      {
+        "title": "SLOW training videos",
+        "body": "South London Orienteers have produced an excellent eight-part series on technique, presented by GB team athletes. Worth watching even on a rainy afternoon."
+      },
+      {
+        "title": "Carol McNeill's books",
+        "body": "Carol McNeill's \"Orienteering\" is the book most British orienteers learned from. Still relevant, well-illustrated, and available secondhand for very little."
+      },
+      {
+        "title": "RouteGadget",
+        "body": "After every event, we upload routes and times to RouteGadget. Reviewing your route alongside the winners' route on the same map is the single best post-event learning tool."
+      }
+    ]
+  }
+}

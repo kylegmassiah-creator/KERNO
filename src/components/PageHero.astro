@@ -1,0 +1,143 @@
+---
+// Reusable hero block for inner pages (events, maps, contacts, etc.).
+//
+// Reads the hero photo for this page from `src/data/page-heroes.json` so the
+// committee can swap any page's hero image through the CMS without a developer.
+//
+// If the page has no image set, the hero falls back to the existing
+// text-on-paper style with no backdrop.
+import heroes from '../data/page-heroes.json';
+import { normaliseImagePath } from '../lib/image-path';
+
+export interface Props {
+  /** Key into page-heroes.json, e.g. "events", "maps", "newcomers". */
+  page: string;
+  /** Eyebrow label, e.g. "Events" */
+  eyebrow: string;
+  /** Big page heading */
+  heading: string;
+  /** Optional intro paragraph */
+  lede?: string;
+}
+
+const { page, eyebrow, heading, lede } = Astro.props;
+const hero = (heroes as Record<string, { image?: string; alt?: string }>)[page] ?? {};
+
+// Decap CMS occasionally saves uploaded image paths with the disk
+// "public/" prefix rather than the URL "/assets/uploads/..." prefix.
+// normaliseImagePath strips it. See src/lib/image-path.ts.
+const heroImageSrc = normaliseImagePath(hero.image);
+const hasImage = !!heroImageSrc;
+---
+<section class={`page-hero ${hasImage ? 'page-hero--photo' : ''}`} data-page={page}>
+  {hasImage && (
+    <div class="page-hero-backdrop" aria-hidden="true">
+      <img src={heroImageSrc} alt={hero.alt ?? ''} loading="eager">
+    </div>
+  )}
+  <div class={`page-hero-wrap ${Astro.slots.has('aside') ? 'page-hero-wrap--with-aside' : ''}`}>
+    <div class="page-hero-main">
+      <p class="eyebrow rise d-1">{eyebrow}</p>
+      <h1 class="rise d-2">{heading}</h1>
+      {lede && <p class="page-lede rise d-3">{lede}</p>}
+      <slot />
+    </div>
+    {Astro.slots.has('aside') && (
+      <aside class="page-hero-aside rise d-5">
+        <slot name="aside" />
+      </aside>
+    )}
+  </div>
+</section>
+
+<style is:global>
+  /* Base styles for the inner-page hero. is:global so the styles apply
+     wherever the component is used (otherwise Astro's scoping would
+     hide them when the markup is in a child component). The
+     `.page-hero--photo` variant overrides selectively in Layout.astro. */
+  .page-hero {
+    position: relative;
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(48px, 5vw, 84px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  /* Club-colour accent stripe, 4px navy + 4px magenta at the very top of
+     every inner page. Carries the KERNO brand through every page. */
+  .page-hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 8px;
+    background: linear-gradient(
+      to bottom,
+      var(--navy) 0%, var(--navy) 50%,
+      var(--plum) 50%, var(--plum) 100%
+    );
+  }
+  .page-hero-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  /* When a page hero passes an `aside` slot (e.g. the Events page Next
+     Event + Latest Results cards), switch to a two-column grid with the
+     main content on the left and the aside on the right, mirroring the
+     homepage hero layout (1.2fr / 0.85fr). The aside has a max-width so
+     the cards stay compact rather than stretching across half the page
+     on wide screens. Stacks on narrow screens. */
+  .page-hero-wrap--with-aside {
+    display: grid;
+    grid-template-columns: 1.2fr 0.85fr;
+    gap: clamp(28px, 4vw, 56px);
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .page-hero-wrap--with-aside { grid-template-columns: 1fr; gap: 32px; }
+  }
+  .page-hero-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-self: start;
+    max-width: 380px;
+    width: 100%;
+    justify-self: end;
+  }
+  @media (max-width: 860px) {
+    .page-hero-aside { max-width: 100%; justify-self: stretch; }
+  }
+  .page-hero-aside > * { margin: 0; }
+  .page-hero .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 18px;
+  }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    /* Match the lighter, more elegant display weight + optical-size axis
+       used on the newcomers hero so every page-hero heading reads the
+       same. Sizes also aligned so headings and ledes are consistent
+       across Events, Maps, News, Information, etc. */
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 22px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-hero .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+  .page-hero .page-lede a {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 2px;
+  }
+</style>

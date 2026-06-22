@@ -1,0 +1,623 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+// All CMS-editable wording on the homepage lives in
+// src/data/home-text.json so the committee can adjust copy via the CMS
+// (Site settings → Home page text). Fields like the hero heading and
+// lede support inline markdown - *italics* and [links](/path) etc.
+import text from '../data/home-text.json';
+// Home hero photo is CMS-editable like every other top-level page.
+// Previously this template hardcoded /assets/photos/training-moorland.jpg
+// which meant Andy's CMS uploads silently went nowhere. The hero now
+// reads from page-heroes.json with the same defensive helper used on
+// every other page.
+import heroes from '../data/page-heroes.json';
+import { normaliseImagePath } from '../lib/image-path';
+const homeHero = (heroes as Record<string, { image?: string; alt?: string }>).home ?? {};
+const homeHeroSrc = normaliseImagePath(homeHero.image);
+const homeHeroAlt = homeHero.alt ?? '';
+marked.setOptions({ gfm: true, breaks: false });
+// Render inline markdown for the CMS-editable body fields, and post-
+// process so any external link (http/https) opens in a new tab. This
+// matches what rehype-external-links does for full markdown content,
+// but applied to the parseInline path which doesn't go through rehype.
+const inline = (s: string) => {
+  const html = marked.parseInline(s ?? '') as string;
+  return html.replace(
+    /<a (href="https?:\/\/[^"]+")/g,
+    '<a target="_blank" rel="noopener" $1'
+  );
+};
+
+// ─────── British Orienteering news, fetched at build time
+// Runs every time Netlify rebuilds (every git push and every nightly cron
+// trigger). If the live fetch fails for any reason, falls back to the
+// hardcoded list below so the section never renders empty.
+//
+// To keep the headlines fresh without committee action, set up a scheduled
+// build trigger in Netlify:
+//   1. Site settings → Build & deploy → Build hooks → "Add build hook"
+//   2. Copy the URL it generates
+//   3. In a free service like https://cron-job.org, schedule a daily POST
+//      to that URL, anything from once a day to once a week is fine.
+type BoNewsItem = { title: string; url: string; date: Date };
+
+const fallbackBoNews: BoNewsItem[] = [
+  { title: "British Orienteering announces date for Annual General Meeting 2026",
+    url: "https://www.britishorienteering.org.uk/news_archive/6783/british_orienteering_announces_date_for_annual_general_meeting_2026",
+    date: new Date("2026-04-14") },
+  { title: "British Middle Championships 2026, Results",
+    url: "https://www.britishorienteering.org.uk/news_archive/6775/british_middle_championships_2026_results",
+    date: new Date("2026-04-07") },
+  { title: "JEC 2026: GB Team Announcement",
+    url: "https://www.britishorienteering.org.uk/news_archive/6778/jec_2026_gb_team_announcement",
+    date: new Date("2026-03-28") },
+  { title: "EYOC 2026: GB Team Announcement",
+    url: "https://www.britishorienteering.org.uk/news_archive/6777/eyoc_2026_gb_team_announcement",
+    date: new Date("2026-03-22") },
+];
+
+// Decode the most common HTML entities a feed (or scraped page) might
+// emit so that titles like "Howden's Webinar" don't render as
+// "Howden&#x27;s Webinar" on the homepage. Handles named entities, plus
+// numeric (&#39;) and hex (&#x27;) character references.
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
+}
+
+function parseRssFeed(xml: string): BoNewsItem[] {
+  const out: BoNewsItem[] = [];
+  for (const m of xml.matchAll(/<item\b[\s\S]*?<\/item>/g)) {
+    const block = m[0];
+    const titleMatch = block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+    const linkMatch  = block.match(/<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/link>/);
+    const dateMatch  = block.match(/<pubDate>([^<]+)<\/pubDate>/);
+    if (titleMatch && linkMatch && dateMatch) {
+      const date = new Date(dateMatch[1]);
+      if (!Number.isNaN(date.getTime())) {
+        out.push({
+          title: decodeHtmlEntities(titleMatch[1].trim()),
+          // Also decode the URL - some feeds entity-encode the slashes
+          // (`&#x2f;`) which the browser then can't parse as a URL.
+          url: decodeHtmlEntities(linkMatch[1].trim()),
+          date,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function scrapeBoNewsArchive(html: string): BoNewsItem[] {
+  // BO's WordPress news archive renders a list of /news_archive/<id>/<slug>
+  // links. Extract the first few unique entries.
+  const out: BoNewsItem[] = [];
+  const seen = new Set<string>();
+  const linkRe = /href="(https?:\/\/(?:www\.)?britishorienteering\.org\.uk\/news_archive\/\d+\/[^"#]+)"[^>]*>([^<]+)</g;
+  for (const m of html.matchAll(linkRe)) {
+    const url = decodeHtmlEntities(m[1]);
+    const title = decodeHtmlEntities(m[2].trim());
+    if (seen.has(url) || !title || title.length < 8) continue;
+    seen.add(url);
+    out.push({ title, url, date: new Date() });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+async function fetchBoNews(): Promise<BoNewsItem[]> {
+  const rssCandidates = [
+    // British Orienteering's actual RSS feed, discovered via the
+    // <link rel="alternate" type="application/rss+xml"> on /news_archive.
+    'https://www.britishorienteering.org.uk/newsrss.php',
+    // Fallbacks just in case the path ever changes
+    'https://www.britishorienteering.org.uk/feed/',
+    'https://www.britishorienteering.org.uk/news/feed/',
+    'https://www.britishorienteering.org.uk/?feed=rss2',
+  ];
+  for (const url of rssCandidates) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const items = parseRssFeed(await res.text());
+      if (items.length > 0) return items.slice(0, 4);
+    } catch { /* try next */ }
+  }
+  // RSS unavailable, try scraping the news archive page
+  try {
+    const res = await fetch('https://www.britishorienteering.org.uk/news_archive',
+                            { signal: AbortSignal.timeout(6000) });
+    if (res.ok) {
+      const items = scrapeBoNewsArchive(await res.text());
+      if (items.length > 0) return items;
+    }
+  } catch { /* fall through */ }
+  return fallbackBoNews;
+}
+
+// Extra belt-and-braces, fetchBoNews already returns the static fallback on
+// error, but if anything truly catastrophic happens (e.g. JSON parse blowup
+// in a future change) we want the build to keep going rather than fail the
+// deploy. The template hides the BO News block when this is empty.
+let boNews: BoNewsItem[] = [];
+try {
+  boNews = (await fetchBoNews()).slice(0, 4);
+} catch (err) {
+  console.warn('[index] BO news fetch failed at the top level:', err);
+  boNews = [];
+}
+
+const fmtBoDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+// ─────── Data: upcoming events from the content collection
+import { isEventUpcoming, isEventPast } from '../lib/event-state';
+const now = new Date();
+const startOfToday = new Date();
+startOfToday.setHours(0, 0, 0, 0);
+const allEvents = await getCollection('events');
+
+// Events stay under "Upcoming" until their start time has passed (or 8pm
+// the same day if there's no start time set).
+const upcoming = allEvents
+  .filter(e => isEventUpcoming(e.data, now) && !e.data.cancelled && !e.data.hidden)
+  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
+
+const nextEvent = upcoming[0];
+const alsoComingUp = upcoming.slice(1, 5);
+
+// ─────── Announcements, banners for the homepage. We pick the single
+// most-severe currently-valid announcement to display.
+const allAnnouncements = await getCollection('announcements');
+const activeAnnouncements = allAnnouncements
+  .filter(a => a.data.published
+            && a.data.validFrom <= now
+            && a.data.validUntil >= now)
+  .sort((a, b) => {
+    const order = { urgent: 0, warning: 1, info: 2 };
+    return order[a.data.severity] - order[b.data.severity];
+  });
+const activeAnnouncement = activeAnnouncements[0];
+
+// ─────── Latest results, most recent past event in the last 10 days that
+// has at least one results file or a post-event report. Shown on the
+// homepage so people landing the morning after an event can find their
+// splits - or read the organiser's writeup - without hunting.
+const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+function hasReportText(e: { data: { report?: string } }) {
+  return typeof e.data.report === 'string' && e.data.report.trim().length > 0;
+}
+const latestResultEvent = allEvents
+  .filter(e => isEventPast(e.data, now)
+            && e.data.date >= tenDaysAgo
+            && !e.data.hidden
+            && ((e.data.results && e.data.results.length > 0) || hasReportText(e)))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())[0];
+
+// ─────── Data: news article to feature on the homepage. Prefer
+// anything with `featured: true` (most recent featured wins if there
+// are several); else fall back to the most recent published article.
+const allNews = (await getCollection('news'))
+  .filter(n => !n.data.draft)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const latestNews =
+  allNews.find(n => n.data.featured) || allNews[0];
+
+// ─────── Date formatters (UK English, no comma after weekday)
+// All pinned to Europe/London so dates render in UK time regardless of build
+// timezone (Netlify builds run in US East, which would otherwise shift YAML
+// dates by one day).
+const fmtFeaturedDate = (d) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const fmtCardDate = (d) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const fmtNewsCaption = (d) => new Intl.DateTimeFormat('en-GB', {
+  month: 'short', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ─────── Schema.org SportsOrganization JSON-LD for the homepage.
+// This is what Google uses to build the club's Knowledge Panel and to
+// verify the club's social-media profiles (sameAs). The PostalAddress and
+// areaServed list lift visibility for queries like "orienteering Cornwall"
+// or "orienteering club Cornwall".
+const siteUrl = Astro.site ?? new URL("https://cornwallorienteering.org.uk");
+const orgJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SportsOrganization",
+  "@id": siteUrl.toString() + "#organization",
+  name: "Cornwall Orienteering Club",
+  alternateName: "KERNO",
+  url: siteUrl.toString(),
+  logo: new URL("/assets/cornwall-logo.png", siteUrl).toString(),
+  image: new URL("/assets/cornwall-logo.png", siteUrl).toString(),
+  sport: "Orienteering",
+  description: "A friendly orienteering club promoting orienteering across Cornwall since 1982. Events through the year, newcomers always welcome.",
+  address: {
+    "@type": "PostalAddress",
+    addressRegion: "Cornwall",
+    addressCountry: "GB",
+  },
+  areaServed: [
+    { "@type": "Place", name: "Truro" },
+    { "@type": "Place", name: "Camborne" },
+    { "@type": "Place", name: "Falmouth" },
+    { "@type": "Place", name: "Newquay" },
+    { "@type": "Place", name: "Bodmin" },
+    { "@type": "Place", name: "Penzance" },
+    { "@type": "Place", name: "St Austell" },
+    { "@type": "Place", name: "Cornwall" },
+  ],
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "customer support",
+    url: new URL("/contacts", siteUrl).toString(),
+    availableLanguage: "English",
+  },
+  memberOf: {
+    "@type": "SportsOrganization",
+    name: "British Orienteering",
+    url: "https://www.britishorienteering.org.uk/",
+  },
+  sameAs: [
+    "https://www.facebook.com/Cornwallorienteering/",
+    "https://www.flickr.com/people/cornwallorienteering/",
+  ],
+};
+---
+<Layout
+  title="Cornwall Orienteering Club - orienteering across Cornwall"
+  description="A friendly orienteering club promoting orienteering across Cornwall since 1982. Events through the year. Newcomers always welcome."
+>
+
+<Fragment slot="head">
+  <script type="application/ld+json" set:html={JSON.stringify(orgJsonLd)}></script>
+</Fragment>
+
+<main id="main">
+
+  <!-- ─────────────────────────── ANNOUNCEMENT BANNER (only if active) -->
+  {activeAnnouncement && (
+    <aside class={`announcement announcement-${activeAnnouncement.data.severity}`} role="status">
+      <div class="announcement-wrap">
+        <span class="announcement-tag" aria-hidden="true">
+          {activeAnnouncement.data.severity === 'urgent' ? '⚠️' :
+           activeAnnouncement.data.severity === 'warning' ? '!' : 'i'}
+        </span>
+        <p class="announcement-msg">{activeAnnouncement.data.message}</p>
+        {activeAnnouncement.data.link && (
+          <a class="announcement-link" href={activeAnnouncement.data.link} rel="noopener">
+            {activeAnnouncement.data.linkLabel ?? 'Read more'} →
+          </a>
+        )}
+      </div>
+    </aside>
+  )}
+
+  <!-- ─────────────────────────── HERO -->
+  <section class="hero">
+    {homeHeroSrc && (
+    <div class="hero-backdrop" aria-hidden="true">
+      <img src={homeHeroSrc} alt={homeHeroAlt} loading="eager" fetchpriority="high">
+    </div>
+    )}
+    <!-- faint topographic contour background, layered on top of the scrim -->
+    <svg class="contour-bg" viewBox="0 0 1200 700" preserveAspectRatio="none" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1">
+      <path d="M-50 140 C 180 80, 360 200, 540 150 S 900 80, 1250 170"/>
+      <path d="M-50 220 C 220 170, 440 280, 660 230 S 1000 170, 1250 260"/>
+      <path d="M-50 320 C 240 270, 460 380, 680 330 S 980 240, 1250 350"/>
+      <path d="M-50 420 C 200 380, 420 480, 640 430 S 960 350, 1250 440"/>
+      <path d="M-50 520 C 260 470, 480 580, 700 530 S 980 450, 1250 540"/>
+      <path d="M-50 620 C 220 570, 440 680, 660 620 S 1000 540, 1250 630"/>
+    </svg>
+
+  <div class="hero-wrap">
+
+    <div class="hero-intro">
+      <p class="eyebrow rise d-2">{text.hero.eyebrow}</p>
+      <h1 class="rise d-3" set:html={inline(text.hero.heading)} />
+      <p class="lede rise d-4">
+        <Fragment set:html={inline(text.hero.lede)} />{" "}
+        <a
+          class="lede-link"
+          href={text.hero.ledeCtaUrl}
+          target={text.hero.ledeCtaUrl.startsWith('http') ? '_blank' : undefined}
+          rel={text.hero.ledeCtaUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+        >{text.hero.ledeCtaLabel} →</a>
+      </p>
+      <div class="hero-cta rise d-5">
+        <a class="btn btn-primary" href={text.hero.primaryCtaUrl}>{text.hero.primaryCtaLabel} <span class="arrow">→</span></a>
+      </div>
+      <dl class="hero-stats rise d-6">
+        {text.hero.stats.map(s => (
+          <div><dt>{s.label}</dt><dd>{s.value}</dd></div>
+        ))}
+      </dl>
+    </div>
+
+    <!-- Right-hand column of the hero, compact Next Event + Latest
+         Results cards stacked. Sits ABOVE THE FOLD next to the headline
+         so the two pieces of "what's happening now" information are
+         visible immediately on landing. -->
+    {(nextEvent || latestResultEvent) && (
+      <aside class="hero-side rise d-5" aria-label="What's happening">
+
+        {nextEvent && (
+          <article class="next-event">
+            <p class="eyebrow"><a href="/events">Next event</a></p>
+            <p class="event-when">
+              <time datetime={nextEvent.data.date.toISOString()}>{fmtFeaturedDate(nextEvent.data.date)}</time>
+              {/* startTime intentionally not shown - it's the LAST start time,
+                  used internally to flip the event from Upcoming to Results,
+                  not a useful detail for visitors. */}
+            </p>
+            <h2><a href={`/events/${nextEvent.id}`}>{nextEvent.data.title}</a></h2>
+            <p class="event-where">
+              {nextEvent.data.location || nextEvent.data.summary}
+            </p>
+            {nextEvent.data.entryFee && (
+              <p class="event-terms">
+                <span>{nextEvent.data.entryFee.split(/[(.]/)[0].trim()}</span>
+              </p>
+            )}
+            {/* While entries are open: show the prominent gold "Enter via
+                SI Entries" CTA. Once entryCloseDate passes, swap to a
+                quiet "Entries closed" badge plus an "Event details" link
+                so visitors aren't bounced to an already-closed SIEntries
+                page but still have a clear next step. */}
+            {nextEvent.data.siEntriesUrl && nextEvent.data.entryCloseDate >= now ? (
+              <a class="btn btn-primary" href={nextEvent.data.siEntriesUrl} rel="noopener">Enter via SI Entries <span class="arrow">→</span></a>
+            ) : nextEvent.data.siEntriesUrl ? (
+              <>
+                <p class="entries-closed-badge">Entries closed</p>
+                <a class="next-event-details-link" href={`/events/${nextEvent.id}`}>Event details <span class="arrow">→</span></a>
+              </>
+            ) : (
+              <a class="btn btn-primary" href={`/events/${nextEvent.id}`}>Event details <span class="arrow">→</span></a>
+            )}
+          </article>
+        )}
+
+        {latestResultEvent && (
+          <article class="hero-latest">
+            <p class="eyebrow"><a href="/events#past">Latest results</a></p>
+            <p class="hero-latest-when">
+              <time datetime={latestResultEvent.data.date.toISOString()}>{fmtCardDate(latestResultEvent.data.date)}</time>
+              {latestResultEvent.data.location && <> · <span>{latestResultEvent.data.location}</span></>}
+            </p>
+            <h2><a href={`/events/${latestResultEvent.id}`}>{latestResultEvent.data.title}</a></h2>
+            <ul class="hero-latest-files">
+              {(latestResultEvent.data.results ?? []).filter(r => !r.hidden).slice(0, 2).map(file => (
+                <li>
+                  <a href={file.url} rel="noopener">
+                    <span class="hero-latest-tag">{file.type === 'pdf' ? 'PDF' : file.type === 'xlsx' ? 'Excel' : file.type === 'csv' ? 'CSV' : 'View'}</span>
+                    <span class="hero-latest-label">{file.label}</span>
+                  </a>
+                </li>
+              ))}
+              {hasReportText(latestResultEvent) && (
+                <li>
+                  <a href={`/events/${latestResultEvent.id}/report`}>
+                    <span class="hero-latest-tag">Report</span>
+                    <span class="hero-latest-label">Event report</span>
+                  </a>
+                </li>
+              )}
+            </ul>
+            <a class="hero-latest-link" href={`/events/${latestResultEvent.id}`}>Event results →</a>
+          </article>
+        )}
+
+      </aside>
+    )}
+
+  </div>
+
+  </section><!-- /hero -->
+
+  <!-- ─────────────────────────── UPCOMING -->
+  <section class="upcoming">
+    <div class="sec-head">
+      <p class="eyebrow">{text.alsoComingUp.eyebrow}</p>
+      <a class="sec-link" href={text.alsoComingUp.linkUrl}>{text.alsoComingUp.linkLabel} →</a>
+    </div>
+    <ul class="event-row">
+      {alsoComingUp.map(event => (
+        <li>
+          <a class="ev-card" href={`/events/${event.id}`}>
+            <span class="arrow-mono">→</span>
+            <time datetime={event.data.date.toISOString()}>{fmtCardDate(event.data.date)}</time>
+            <h3>{event.data.title}</h3>
+            <p class="ev-sub">{event.data.summary}</p>
+            <span class={`level level-${event.data.level}`}>{capitalize(event.data.level)}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+
+  <!-- ─────────────────────────── TAKE PART ANYTIME
+       Two routes for people who can't make a formal event: KERNO's two
+       permanent orienteering courses (Tehidy + Idless, listed on British
+       Orienteering's GoOrienteering), and the newcomers' guide. -->
+  <section class="anytime-strip" aria-labelledby="anytime-heading">
+    <div class="anytime-wrap">
+      <div class="anytime-intro">
+        <p class="eyebrow">{text.anytime.eyebrow}</p>
+        <h2 id="anytime-heading">{text.anytime.heading}</h2>
+        <p set:html={inline(text.anytime.body)} />
+      </div>
+      <ul class="anytime-cards">
+        <li>
+          <a class="anytime-card" href="https://www.cornwallorienteering.org.uk/main/about_us/what_is_o.php" rel="noopener" target="_blank">
+            <p class="anytime-tag">Start here</p>
+            <h3>New to orienteering?</h3>
+            <p class="anytime-blurb">What orienteering is, how it works, and what to expect on the day. Newcomers are always welcome at KERNO events.</p>
+            <span class="anytime-go" aria-hidden="true">Read the guide →</span>
+          </a>
+        </li>
+        <li>
+          <a class="anytime-card" href="https://www.goorienteering.org.uk/permanent-orienteering-courses" rel="noopener" target="_blank">
+            <p class="anytime-tag">2 in Cornwall</p>
+            <h3>Permanent courses (POCs)</h3>
+            <p class="anytime-blurb">Fixed-post courses you can run any day, at Tehidy Country Park (Camborne) and St Clement Woods, Idless (Truro).</p>
+            <span class="anytime-go" aria-hidden="true">Find a POC →</span>
+          </a>
+        </li>
+        <li>
+          <a class="anytime-card" href="https://www.cornwallorienteering.org.uk/main/about_us/resources/map_symbols.pdf" rel="noopener" target="_blank">
+            <p class="anytime-tag">PDF guide</p>
+            <h3>Map symbols</h3>
+            <p class="anytime-blurb">What the colours and symbols on an orienteering map mean.</p>
+            <span class="anytime-go" aria-hidden="true">Open the guide →</span>
+          </a>
+        </li>
+        <li>
+          <a class="anytime-card" href="https://www.cornwallorienteering.org.uk/main/about_us/resources/control-descriptions.pdf" rel="noopener" target="_blank">
+            <p class="anytime-tag">PDF guide</p>
+            <h3>Control descriptions</h3>
+            <p class="anytime-blurb">How to read the IOF control description symbols you'll meet on a course.</p>
+            <span class="anytime-go" aria-hidden="true">Open the guide →</span>
+          </a>
+        </li>
+        <li>
+          <a class="anytime-card" href="https://www.cornwallorienteering.org.uk/main/about_us/code_of_conduct.pdf" rel="noopener" target="_blank">
+            <p class="anytime-tag">PDF</p>
+            <h3>BOF Code of Conduct</h3>
+            <p class="anytime-blurb">The British Orienteering code of conduct that applies at all our events.</p>
+            <span class="anytime-go" aria-hidden="true">Read the code →</span>
+          </a>
+        </li>
+        <li>
+          <a class="anytime-card" href="https://www.cornwallorienteering.org.uk/main/about_us/safeguarding.php" rel="noopener" target="_blank">
+            <p class="anytime-tag">Policy</p>
+            <h3>Safeguarding</h3>
+            <p class="anytime-blurb">Our club safeguarding policy and how to raise a concern.</p>
+            <span class="anytime-go" aria-hidden="true">Read the policy →</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── SOCIAL STRIP -->
+  <section class="social-strip" aria-label="Follow us on social media">
+    <div class="social-wrap">
+      <div class="social-copy">
+        <p class="eyebrow">{text.social.eyebrow}</p>
+        <h2>{text.social.heading}</h2>
+        <p set:html={inline(text.social.body)} />
+      </div>
+      <div class="social-buttons">
+        <a class="social-btn" href="https://www.facebook.com/Cornwallorienteering/" rel="noopener" aria-label="Follow Cornwall Orienteering Club on Facebook">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M13 22v-8h3l1-4h-4V7.5c0-1.2.4-2 2-2h2V2h-3c-2.8 0-4.5 1.6-4.5 4.5V10H6v4h3.5v8H13z"/>
+          </svg>
+          <span>
+            <strong>Follow on Facebook</strong>
+            <span class="handle">@Cornwallorienteering</span>
+          </span>
+        </a>
+        <a class="social-btn" href="https://www.flickr.com/people/cornwallorienteering/" rel="noopener" aria-label="Cornwall Orienteering Club on Flickr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="4.5"/>
+            <circle cx="12" cy="12" r="4"/>
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+          </svg>
+          <span>
+            <strong>See photos on Flickr</strong>
+            <span class="handle">flickr.com/cornwallorienteering</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── WIDER SPORT (British Orienteering) -->
+  <section class="wider-sport" aria-label="British Orienteering news">
+    <div class="ws-grid">
+      <div class="ws-brand">
+        <a class="bo-logo" href="https://www.britishorienteering.org.uk/" rel="noopener" aria-label="British Orienteering">
+          <img src="/assets/british-orienteering.svg" alt="British Orienteering" width="180" height="48">
+        </a>
+        <p set:html={inline(text.widerSport.boBlurb)} />
+      </div>
+
+      <div class="ws-feed">
+        <p class="eyebrow">{text.widerSport.eyebrow}</p>
+        <ul>
+          {boNews.map(item => (
+            <li>
+              <time datetime={item.date.toISOString().slice(0, 10)}>{fmtBoDate(item.date)}</time>
+              <h3><a href={item.url.startsWith('http') ? item.url : `https://www.britishorienteering.org.uk${item.url.startsWith('/') ? '' : '/'}${item.url}`} target="_blank" rel="noopener noreferrer">{item.title}</a></h3>
+              <span class="read">Read →</span>
+            </li>
+          ))}
+        </ul>
+        <p class="ws-footer"><a href={text.widerSport.allNewsUrl} rel="noopener">{text.widerSport.allNewsLabel} →</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── LATEST + NEWCOMERS -->
+  <section class="bottom-split">
+    {latestNews && (
+      <article class="featured-news">
+        <a class="news-image" href={`/news/${latestNews.id}`} aria-label={latestNews.data.title}>
+          {latestNews.data.heroImage && (
+            <img src={latestNews.data.heroImage} alt={latestNews.data.heroImageAlt ?? ""}>
+          )}
+          <p class="news-caption">{fmtNewsCaption(latestNews.data.date)}</p>
+        </a>
+        <div class="news-body">
+          <p class="eyebrow">Latest news</p>
+          <h2>{latestNews.data.title}</h2>
+          <p>{latestNews.data.summary}</p>
+          <a class="more" href={`/news/${latestNews.id}`}>Read the story →</a>
+        </div>
+      </article>
+    )}
+
+    <aside class="newcomer-cta">
+      <div class="cta-text">
+        <p class="eyebrow">{text.newcomerCta.eyebrow}</p>
+        <h2 set:html={inline(text.newcomerCta.heading)} />
+        <p set:html={inline(text.newcomerCta.body)} />
+        <a
+          class="btn"
+          href={text.newcomerCta.ctaUrl}
+          target={text.newcomerCta.ctaUrl.startsWith('http') ? '_blank' : undefined}
+          rel={text.newcomerCta.ctaUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+        >{text.newcomerCta.ctaLabel} →</a>
+      </div>
+      <div class="cta-video">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/l8hXwh_0sNM"
+          title="What orienteering is about — Cornwall Orienteering Club"
+          loading="lazy"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
+      </div>
+    </aside>
+  </section>
+
+</main>
+
+</Layout>

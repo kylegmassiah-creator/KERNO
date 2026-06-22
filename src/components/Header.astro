@@ -1,0 +1,82 @@
+---
+// Active-link logic: the nav item whose href best matches the current
+// page URL gets the `current` class (renders with the purple underline).
+// Picks the longest matching href so a page like /information/anytime-orienteering
+// correctly highlights "Anytime O" instead of "Information", and so that
+// /events/whatever still highlights "Events".
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+// Cornwall Orienteering Club (KERNO) top-level navigation.
+// Mirrors the club's own site, minus "Photos": that link just points at the
+// club's Flickr account, so rather than a dedicated nav page it's surfaced on
+// the home page (social strip) and in the header utility bar + footer instead.
+const navItems: { href: string; label: string; external?: boolean }[] = [
+  { href: '/', label: 'Home' },
+  { href: '/news', label: 'News' },
+  { href: '/events', label: 'Fixtures' },
+  { href: '/results-archive', label: 'Results' },
+  { href: 'https://www.cornwallorienteering.org.uk/main/about_us/about_us.php', label: 'About Us', external: true },
+];
+function isCurrent(href: string): boolean {
+  if (href === '/') return path === '/';
+  if (href.startsWith('http')) return false; // external links never "current"
+  // Find which nav item is the closest prefix of the current path.
+  // The winner is the longest href that the path either equals or
+  // starts with (followed by /).
+  let bestHref = '';
+  for (const item of navItems) {
+    if (item.href === '/' || item.external) continue;
+    if (path === item.href || path.startsWith(item.href + '/')) {
+      if (item.href.length > bestHref.length) bestHref = item.href;
+    }
+  }
+  return bestHref === href;
+}
+---
+<header class="topbar rise d-1">
+  <div class="topbar-brand">
+    <a class="wordmark" href="/" aria-label="Cornwall Orienteering Club, home">
+      <img class="club-logo" src="/assets/cornwall-logo.png" alt="" aria-hidden="true">
+      <span>
+        Cornwall Orienteering Club
+        <small>Cornwall · British Orienteering</small>
+      </span>
+    </a>
+
+    <div class="topbar-utility" aria-label="Utility">
+      <a href="https://www.facebook.com/Cornwallorienteering/" rel="noopener" aria-label="Facebook">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 22v-8h3l1-4h-4V7.5c0-1.2.4-2 2-2h2V2h-3c-2.8 0-4.5 1.6-4.5 4.5V10H6v4h3.5v8H13z"/></svg>
+        Facebook
+      </a>
+      <a href="https://www.flickr.com/people/cornwallorienteering/" rel="noopener" aria-label="Flickr">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+        Flickr
+      </a>
+    </div>
+
+    <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Toggle menu">
+      <svg width="20" height="14" viewBox="0 0 20 14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4">
+        <line x1="0" y1="2" x2="20" y2="2"/>
+        <line x1="0" y1="12" x2="20" y2="12"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="nav-row" id="primary-nav-wrap">
+    <nav class="nav-list" id="primary-nav" aria-label="Primary">
+      {navItems.map(item => (
+        <a
+          href={item.href}
+          target={item.external ? '_blank' : undefined}
+          rel={item.external ? 'noopener noreferrer' : undefined}
+          class:list={[{ current: isCurrent(item.href) }]}
+        >{item.label}</a>
+      ))}
+      <a href="/search" class="search" aria-label="Search">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4">
+          <circle cx="7" cy="7" r="5"/>
+          <line x1="11" y1="11" x2="15" y2="15"/>
+        </svg>
+      </a>
+    </nav>
+  </div>
+</header>

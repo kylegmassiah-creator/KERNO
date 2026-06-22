@@ -1,0 +1,149 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+<Layout
+  title="Page not found, Cornwall Orienteering Club"
+  description="That page has moved or no longer exists. Use the search box or pick one of the quick links below to find what you were looking for."
+  noindex={true}
+>
+
+<main id="main">
+
+  <PageHero
+    page="404"
+    eyebrow="404"
+    heading="That page seems to have run off-course."
+    lede="Sorry, the page you were after has moved or no longer exists. The old KERNO site had a different URL structure, so a few inbound links land here. Try searching, or pick one of the popular destinations below."
+  />
+
+  <section class="not-found-actions">
+    <div class="not-found-wrap">
+      <form action="/search" method="get" class="quick-search">
+        <label for="nf-q" class="quick-search-label">Search the site</label>
+        <div class="quick-search-row">
+          <input id="nf-q" name="q" type="search" placeholder="e.g. Lee Quarry, newcomers, MapRun" autocomplete="off">
+          <button type="submit">Search →</button>
+        </div>
+      </form>
+
+      <p class="quick-links-label">Or jump straight to:</p>
+      <ul class="quick-links">
+        <li><a href="/events"><strong>Upcoming events</strong><span>The next few fixtures and the calendar</span></a></li>
+        <li><a href="/newcomers"><strong>New to orienteering?</strong><span>Start here, what to expect at your first event</span></a></li>
+        <li><a href="/maps"><strong>Mapped areas</strong><span>Where we run, with terrain notes</span></a></li>
+        <li><a href="/contacts"><strong>Contact the committee</strong><span>Send a message to the right person</span></a></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .not-found-actions {
+    padding: clamp(40px, 5vw, 72px) var(--pad-x);
+    background: var(--paper);
+  }
+  .not-found-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .quick-search {
+    margin-bottom: 36px;
+  }
+  .quick-search-label {
+    display: block;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 8px;
+  }
+  .quick-search-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+  .quick-search input {
+    font-family: var(--ff-body);
+    font-size: 16px;
+    color: var(--ink);
+    background: var(--paper-2);
+    border: 1px solid var(--rule-2);
+    padding: 12px 14px;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .quick-search input:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: -1px;
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+  .quick-search button {
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-body);
+    font-weight: 500;
+    font-size: 15px;
+    padding: 12px 22px;
+    border: 0;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+  }
+  .quick-search button:hover {
+    background: var(--ink);
+    color: var(--gold);
+  }
+
+  .quick-links-label {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 14px 0;
+  }
+  .quick-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .quick-links a {
+    display: block;
+    padding: 16px 18px;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .quick-links a:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    transform: translateY(-2px);
+  }
+  .quick-links strong {
+    display: block;
+    font-weight: 500;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .quick-links span {
+    display: block;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+  }
+  .quick-links a:hover span { color: var(--ink); }
+
+  @media (max-width: 520px) {
+    .quick-search-row { grid-template-columns: 1fr; }
+  }
+</style>

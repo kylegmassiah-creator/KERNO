@@ -1,0 +1,370 @@
+---
+// Pre-2024 results archive page.
+//
+// Renders every KERNO event from 2009-2023 grouped by year, year-as-accordion.
+// Data comes from src/data/results-archive.json - populated by the migration
+// scripts in /scripts/ that mirror files from the old cornwallorienteering.org.uk site into
+// /public/results-archive/YYYY/ and record one entry per event with its
+// associated result files.
+//
+// Recent results (2024+) live on each individual event's page on the Events
+// list and aren't repeated here.
+
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import text from '../data/results-archive-text.json';
+import archive from '../data/results-archive.json';
+
+type ArchiveFile = {
+  label: string;
+  url: string;
+  type: 'html' | 'pdf' | 'xlsx' | 'csv' | 'image' | 'other';
+};
+type ArchiveEvent = {
+  date: string;            // ISO YYYY-MM-DD
+  name: string;
+  location?: string;
+  level?: string;          // Local / Regional / National / Major
+  files: ArchiveFile[];
+};
+type ArchiveYear = { year: number; events: ArchiveEvent[] };
+
+const years = (archive.years as ArchiveYear[])
+  .slice()
+  .sort((a, b) => b.year - a.year);          // newest year on top
+
+// Pretty date for table - "Sat 6 May" style, no year (the year is implied by
+// the accordion we're already inside).
+const fmtDate = (iso: string) => {
+  const d = new Date(iso + 'T12:00:00');     // midday avoids timezone slips
+  if (isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London',
+  }).format(d);
+};
+
+// One small icon per file type - kept short so we can show several side by side
+const typeLabel = (t: string) => {
+  switch (t) {
+    case 'xlsx': return 'XLS';
+    case 'pdf':  return 'PDF';
+    case 'csv':  return 'CSV';
+    case 'image':return 'Photo';
+    case 'html': return 'HTML';
+    default:     return 'File';
+  }
+};
+---
+<Layout
+  title="Results archive - Cornwall Orienteering Club"
+  description="Results from every KERNO event from 2009 to 2023, mirrored from the previous KERNO website. Click any year to expand."
+>
+<main id="main">
+
+  <PageHero
+    page="results-archive"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  />
+
+  <section class="ra-page">
+    <div class="ra-wrap">
+
+      <p class="ra-intro">{text.introNote}</p>
+
+      {years.length === 0 && (
+        <p class="ra-empty">{text.emptyArchiveMessage}</p>
+      )}
+
+      {years.length > 0 && (
+        <ul class="ra-years">
+          {years.map(y => (
+            <li class="ra-year">
+              <details>
+                <summary>
+                  <span class="ra-year-label">{y.year}</span>
+                  <span class="ra-year-count">
+                    {y.events.length} {y.events.length === 1 ? 'event' : 'events'}
+                  </span>
+                  <span class="ra-year-chev" aria-hidden="true">▾</span>
+                </summary>
+
+                {y.events.length === 0 ? (
+                  <p class="ra-empty">{text.emptyYearMessage}</p>
+                ) : (
+                  <div class="ra-table-wrap">
+                    <table class="ra-table">
+                      <thead>
+                        <tr>
+                          <th scope="col" class="ra-col-date">Date</th>
+                          <th scope="col" class="ra-col-event">Event</th>
+                          <th scope="col" class="ra-col-files">Files</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {y.events
+                          .slice()
+                          .sort((a, b) => b.date.localeCompare(a.date))
+                          .map(ev => (
+                            <tr>
+                              <td class="ra-col-date" data-label="Date">{fmtDate(ev.date)}</td>
+                              <td class="ra-col-event" data-label="Event">
+                                <span class="ra-ev-name">{ev.name}</span>
+                                {ev.level && ev.level.toLowerCase() !== 'local' && (
+                                  <span class="ra-ev-level" data-level={ev.level.toLowerCase()}>{ev.level}</span>
+                                )}
+                              </td>
+                              <td class="ra-col-files" data-label="Files">
+                                <ul class="ra-files">
+                                  {ev.files.map(f => (
+                                    <li>
+                                      <a class="ra-file" href={f.url} rel="noopener" data-type={f.type}>
+                                        <span class="ra-file-icon" aria-hidden="true">{typeLabel(f.type)}</span>
+                                        <span class="ra-file-label">{f.label}</span>
+                                      </a>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+
+    </div>
+  </section>
+
+</main>
+</Layout>
+
+<style>
+  .ra-page {
+    padding: clamp(2rem, 4vw, 3.5rem) 0 clamp(3rem, 6vw, 5rem);
+  }
+  .ra-wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 clamp(1rem, 3vw, 2rem);
+  }
+  .ra-intro {
+    font-size: 1.0625rem;
+    color: var(--ink-mute);
+    margin: 0 0 2rem;
+    max-width: 64ch;
+  }
+  .ra-empty {
+    font-size: 1rem;
+    color: var(--ink-mute);
+    background: var(--paper);
+    border: 1px dashed rgba(0, 0, 0, 0.12);
+    padding: 1.25rem 1.5rem;
+    border-radius: 6px;
+  }
+
+  /* ─────────── Year accordion */
+  .ra-years {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .ra-year details {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .ra-year details[open] {
+    border-color: rgba(11, 37, 69, 0.25);
+    box-shadow: 0 2px 12px rgba(11, 37, 69, 0.06);
+  }
+  .ra-year summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--paper);
+    transition: background 120ms ease;
+  }
+  .ra-year summary::-webkit-details-marker { display: none; }
+  .ra-year summary:hover { background: #f3eddc; }
+  .ra-year details[open] summary {
+    background: var(--navy);
+    color: var(--paper);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .ra-year-label {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .ra-year-count {
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.7;
+    margin-left: auto;
+  }
+  .ra-year-chev {
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: transform 200ms ease;
+  }
+  .ra-year details[open] .ra-year-chev {
+    transform: rotate(180deg);
+  }
+
+  /* ─────────── Table inside each year */
+  .ra-table-wrap {
+    overflow-x: auto;
+    padding: 0;
+  }
+  .ra-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  .ra-table thead {
+    background: #fafaf6;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  .ra-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-mute);
+  }
+  .ra-table td {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    vertical-align: top;
+  }
+  .ra-table tr:last-child td { border-bottom: none; }
+  .ra-table tbody tr:nth-child(even) {
+    background: rgba(250, 248, 242, 0.4);
+  }
+  .ra-col-date {
+    white-space: nowrap;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+  }
+  .ra-col-event {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .ra-ev-name { margin-right: 0.5rem; }
+  .ra-ev-level {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    vertical-align: middle;
+    background: rgba(11, 37, 69, 0.08);
+    color: var(--navy);
+  }
+  .ra-ev-level[data-level="regional"] {
+    background: rgba(122, 94, 12, 0.12);
+    color: #6b4f00;
+  }
+  .ra-ev-level[data-level="national"] {
+    background: rgba(196, 30, 79, 0.12);
+    color: #c41e4f;
+  }
+  .ra-ev-level[data-level="major"] {
+    background: rgba(196, 30, 79, 0.2);
+    color: #c41e4f;
+  }
+  .ra-col-loc { color: var(--ink-mute); }
+  .ra-col-files { min-width: 200px; }
+
+  /* ─────────── File chip list */
+  .ra-files {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .ra-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.55rem 0.25rem 0.4rem;
+    background: var(--paper);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--ink);
+    text-decoration: none;
+    transition: all 120ms ease;
+  }
+  .ra-file:hover {
+    background: var(--navy);
+    color: var(--paper);
+    border-color: var(--navy);
+  }
+  .ra-file-icon {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.12);
+    color: var(--ink);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    line-height: 1.3;
+  }
+  .ra-file:hover .ra-file-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--paper);
+  }
+  .ra-file[data-type="pdf"] .ra-file-icon { background: rgba(196, 30, 79, 0.15); color: #c41e4f; }
+  .ra-file[data-type="xlsx"] .ra-file-icon { background: rgba(46, 125, 50, 0.15); color: #2e7d32; }
+  .ra-file[data-type="html"] .ra-file-icon { background: rgba(11, 37, 69, 0.12); color: var(--navy); }
+  .ra-file[data-type="image"] .ra-file-icon { background: rgba(0, 0, 0, 0.1); color: var(--ink-mute); }
+
+  /* ─────────── Mobile reflow - table becomes stacked cards */
+  @media (max-width: 720px) {
+    .ra-table thead { display: none; }
+    .ra-table, .ra-table tbody, .ra-table tr, .ra-table td { display: block; width: 100%; }
+    .ra-table tr {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding: 0.75rem 0;
+    }
+    .ra-table tr:last-child { border-bottom: none; }
+    .ra-table td {
+      border-bottom: none;
+      padding: 0.25rem 1rem;
+    }
+    .ra-table td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-mute);
+      margin-bottom: 0.15rem;
+    }
+    .ra-col-loc:empty { display: none; }
+  }
+</style>

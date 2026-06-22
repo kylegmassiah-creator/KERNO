@@ -1,0 +1,1001 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Decap CMS configuration for Cornwall Orienteering Club
+#
+# Edits made in the admin UI commit directly to the GitHub repo via Netlify's
+# Git Gateway. Netlify rebuilds and the live site updates within ~30 seconds.
+#
+# Committee members log in by email invitation (sent from the Netlify dashboard).
+# No Git knowledge or developer tools required.
+# ─────────────────────────────────────────────────────────────────────────────
+
+backend:
+  name: git-gateway
+  branch: main
+  squash_merges: true
+
+# Drafts go through an editorial workflow - Save as draft → Ready → Publish.
+# This lets editors save in-progress edits without publishing them live.
+publish_mode: editorial_workflow
+
+# Where uploaded media (event photos, map images, news heroes) lives in the repo
+media_folder: "public/assets/uploads"
+public_folder: "/assets/uploads"
+
+# Show a friendlier site logo on the login screen
+logo_url: /assets/cornwall-logo.png
+site_url: https://cornwallorienteering.org.uk
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COLLECTIONS
+# Each collection maps to a content collection in src/content/
+# ─────────────────────────────────────────────────────────────────────────────
+collections:
+
+  # ─── SITE SETTINGS ───────────────────────────────────────────────────────
+  # Singletons - shared site-wide config the committee can edit. Currently:
+  # the hero photo for each top-level page.
+  - name: "site-settings"
+    label: "Site settings"
+    description: "Photos and shared text used across the site. Hero photos can be left blank for a plain text-only header."
+    files:
+      - name: "page-heroes"
+        label: "Page hero photos"
+        file: "src/data/page-heroes.json"
+        description: "The big photo at the top of each page. Click 'Browse' on each Image field to upload a new one or pick from already-uploaded photos."
+        fields:
+          - name: "home"
+            label: "Home page hero"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false, hint: "1600×900 or larger; landscape orientation works best" }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false, hint: "Describe the image for screen readers" }
+          - name: "events"
+            label: "Events page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "maps"
+            label: "Mapped areas page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "newcomers"
+            label: "Newcomers page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "training"
+            label: "Training page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "membership"
+            label: "Membership page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "about"
+            label: "About page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "contacts"
+            label: "Contacts page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "news"
+            label: "News page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+          - name: "information"
+            label: "Information page hero"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "image", label: "Image",     widget: "image",  required: false }
+              - { name: "alt",   label: "Alt text",  widget: "string", required: false }
+
+      - name: "home-text"
+        label: "Home page text"
+        file: "src/data/home-text.json"
+        description: "Wording across the homepage - hero text, the section under 'Take part anytime', the 'Stay in touch' social strip, and the British Orienteering 'wider sport' block. The event cards, news teaser and 'Next event' card all come from other content collections and aren't edited here."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow",          label: "Eyebrow (above the heading)", widget: "string" }
+              - { name: "heading",          label: "Heading",                     widget: "string", hint: "Inline markdown allowed - wrap text in *single asterisks* for italics, e.g. 'Orienteering across *Cornwall*'." }
+              - { name: "lede",             label: "Intro paragraph",             widget: "text", hint: "Inline markdown allowed for italics and bold." }
+              - { name: "ledeCtaLabel",     label: "Inline link label",           widget: "string", hint: "Short link at the end of the intro, e.g. 'Join us'. An arrow is added automatically." }
+              - { name: "ledeCtaUrl",       label: "Inline link URL",             widget: "string", hint: "e.g. /membership" }
+              - { name: "primaryCtaLabel",  label: "Big button label",            widget: "string", hint: "The main call-to-action button below the intro, e.g. 'All upcoming events'." }
+              - { name: "primaryCtaUrl",    label: "Big button URL",              widget: "string", hint: "e.g. /events" }
+              - name: "stats"
+                label: "Hero stats (small label/value pairs)"
+                widget: "list"
+                summary: "{{fields.label}} - {{fields.value}}"
+                hint: "Two or three short stats shown under the buttons. Add, remove, reorder freely."
+                fields:
+                  - { name: "label", label: "Label",  widget: "string", hint: "e.g. 'Mapped areas'" }
+                  - { name: "value", label: "Value",  widget: "string", hint: "e.g. '30+'" }
+          - name: "alsoComingUp"
+            label: "‘Also coming up’ section header"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",   label: "Section eyebrow", widget: "string", hint: "e.g. 'Also coming up'" }
+              - { name: "linkLabel", label: "Link label",      widget: "string", hint: "e.g. 'Full calendar'. An arrow is added automatically." }
+              - { name: "linkUrl",   label: "Link URL",        widget: "string", hint: "e.g. /events" }
+          - name: "anytime"
+            label: "‘Take part anytime’ block"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string", hint: "e.g. 'Take part anytime'" }
+              - { name: "heading", label: "Heading", widget: "string", hint: "e.g. 'Can\\'t make a Saturday? Try these.'" }
+              - { name: "body",    label: "Intro paragraph", widget: "text" }
+          - name: "social"
+            label: "‘Stay in touch’ social strip"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Body", widget: "text" }
+          - name: "widerSport"
+            label: "‘From the wider sport’ (British Orienteering news)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",       label: "Eyebrow", widget: "string" }
+              - { name: "boBlurb",       label: "British Orienteering blurb", widget: "text", hint: "The paragraph next to the BO logo. The headlines themselves come from the live BO news feed." }
+              - { name: "allNewsLabel",  label: "‘All BO news’ link label", widget: "string", hint: "Label for the link below the news headlines. An arrow is added automatically." }
+              - { name: "allNewsUrl",    label: "‘All BO news’ link URL",   widget: "string", hint: "Default: https://www.britishorienteering.org.uk/news_archive" }
+          - name: "newcomerCta"
+            label: "‘Never tried this?’ block (bottom-right of homepage)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",  label: "Eyebrow", widget: "string", hint: "e.g. 'Never tried this?'" }
+              - { name: "heading",  label: "Heading", widget: "string", hint: "Inline markdown allowed - wrap text in *single asterisks* for italics, e.g. 'The sport of finding your way, *at your own pace*.'" }
+              - { name: "body",     label: "Body", widget: "text" }
+              - { name: "ctaLabel", label: "Button label", widget: "string", hint: "e.g. 'How it works'. An arrow is added automatically." }
+              - { name: "ctaUrl",   label: "Button URL",   widget: "string", hint: "e.g. /newcomers" }
+
+      - name: "events-text"
+        label: "Events page text"
+        file: "src/data/events-text.json"
+        description: "Wording for the /events page. The event cards, calendar, map and past results all come from the Events content collection automatically."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "lede",    label: "Intro paragraph", widget: "text" }
+          - { name: "neighboursCtaLabel", label: "‘Events from neighbouring clubs’ CTA label", widget: "string", hint: "Small button bottom-right of the upcoming-events list that jumps down to the neighbouring-club listings." }
+          - name: "neighbours"
+            label: "‘Neighbouring clubs’ section"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",     label: "Section eyebrow", widget: "string", hint: "e.g. 'Neighbouring clubs'" }
+              - { name: "intro",       label: "Intro paragraph", widget: "text", hint: "Markdown allowed for inline links, e.g. [British Orienteering's full event listing →](https://www.britishorienteering.org.uk/event)." }
+              - { name: "loadingNote", label: "Loading message", widget: "string", hint: "Shown briefly while the live feed loads, e.g. 'Loading upcoming events from British Orienteering…'." }
+
+      - name: "membership-text"
+        label: "Membership page text"
+        file: "src/data/membership-text.json"
+        description: "Wording for the /membership page. The join-form link points at British Orienteering's site with KERNO pre-selected - that URL is editable here too."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow",          label: "Eyebrow", widget: "string" }
+              - { name: "heading",          label: "Heading", widget: "string" }
+              - { name: "lede",             label: "Intro paragraph", widget: "text" }
+              - { name: "primaryCtaLabel",  label: "Primary button label", widget: "string" }
+              - { name: "primaryCtaUrl",    label: "Primary button URL",   widget: "string", hint: "Usually the British Orienteering join form" }
+              - { name: "secondaryCtaLabel",label: "Secondary button label", widget: "string" }
+              - { name: "secondaryCtaUrl",  label: "Secondary button URL",   widget: "string", hint: "e.g. #what-you-get jumps to the benefits block on the same page" }
+          - name: "whatYouGet"
+            label: "‘What you get’ benefits grid"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "benefits"
+                label: "Benefit cards"
+                widget: "list"
+                summary: "{{fields.title}}"
+                hint: "Six cards looks best in the grid. Add or remove freely."
+                fields:
+                  - { name: "title", label: "Card title", widget: "string" }
+                  - { name: "body",  label: "Card body",  widget: "text" }
+          - name: "threeMemberships"
+            label: "‘Three memberships, one payment’ block"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Main paragraph", widget: "text" }
+              - { name: "note",    label: "Italic note below", widget: "text" }
+          - name: "howToJoin"
+            label: "‘How to join’ steps"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "steps"
+                label: "Numbered steps"
+                widget: "list"
+                summary: "{{fields.step}}"
+                hint: "Each step renders as a numbered card. Markdown allowed - use **bold** for the lead-in and plain text for the rest."
+                field: { name: "step", label: "Step text", widget: "text" }
+              - { name: "ctaLabel",   label: "Button label", widget: "string" }
+              - { name: "ctaUrl",     label: "Button URL",   widget: "string" }
+              - { name: "contactNote",label: "Closing note", widget: "text", hint: "Markdown allowed for inline links, e.g. [Emma Taylor](/contacts)." }
+
+      - name: "training-text"
+        label: "Training page text"
+        file: "src/data/training-text.json"
+        description: "Wording for the /training page. Two side-by-side columns (For newcomers / For experienced), then a four-card self-led practice grid below."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "lede",    label: "Intro paragraph", widget: "text" }
+          - name: "forNewcomers"
+            label: "Left column - ‘For newcomers’"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Body", widget: "text", hint: "Multiple paragraphs allowed - leave a blank line between paragraphs. Markdown for links and bold." }
+          - name: "forExperienced"
+            label: "Right column - ‘For experienced orienteers’"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Body", widget: "text", hint: "Multiple paragraphs allowed. Markdown for links and bold." }
+          - name: "selfLed"
+            label: "‘Self-led practice’ resource grid"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "resources"
+                label: "Resource cards"
+                widget: "list"
+                summary: "{{fields.title}}"
+                hint: "Each card has a heading and a short paragraph. Markdown for links."
+                fields:
+                  - { name: "title", label: "Card title", widget: "string" }
+                  - { name: "body",  label: "Card body",  widget: "text" }
+
+      - name: "newcomers-text"
+        label: "Newcomers page text"
+        file: "src/data/newcomers-text.json"
+        description: "Every word on the /newcomers page. Sections match the page layout - Hero, How it works, What to bring, Your first event, Coming up, FAQ. Inline links can be added in body fields using markdown like [click here](/somewhere)."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow",          label: "Eyebrow (above the heading)", widget: "string", hint: "e.g. 'For newcomers'" }
+              - { name: "heading",          label: "Heading",                     widget: "string" }
+              - { name: "lede",             label: "Intro paragraph",             widget: "text" }
+              - { name: "primaryCtaLabel",  label: "Primary button label",        widget: "string" }
+              - { name: "primaryCtaUrl",    label: "Primary button link",         widget: "string", hint: "e.g. /events" }
+              - { name: "secondaryCtaLabel",label: "Secondary button label",      widget: "string" }
+              - { name: "secondaryCtaUrl",  label: "Secondary button link",       widget: "string", hint: "e.g. #faq" }
+          - name: "howItWorks"
+            label: "How it works (3-column block)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "items"
+                label: "Items (3 cards)"
+                widget: "list"
+                summary: "{{fields.title}}"
+                hint: "Three columns shown side by side. You can add or remove items, but 3 looks best."
+                fields:
+                  - { name: "title", label: "Card title", widget: "string", hint: "e.g. '1. The map'" }
+                  - { name: "body",  label: "Card body",  widget: "text" }
+          - name: "whatToBring"
+            label: "What to bring (6-card grid)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "items"
+                label: "Kit items"
+                widget: "list"
+                summary: "{{fields.title}}"
+                hint: "Each item is a card. Reorder by dragging; add or remove items freely."
+                fields:
+                  - { name: "title", label: "Item title", widget: "string", hint: "e.g. 'Footwear'" }
+                  - { name: "body",  label: "Description", widget: "text" }
+          - name: "yourFirstEvent"
+            label: "Your first event (numbered steps)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "steps"
+                label: "Steps"
+                widget: "list"
+                summary: "{{fields.lead}}"
+                hint: "Each step has a bold lead-in followed by a longer explanation. Body supports markdown for links."
+                fields:
+                  - { name: "lead", label: "Bold lead-in", widget: "string", hint: "Shown in bold at the start of each step, e.g. 'Find an event near you'" }
+                  - { name: "body", label: "Rest of the sentence", widget: "text", hint: "The text that follows the bold lead-in. Use markdown for inline links, e.g. on the [events page](/events)." }
+          - name: "comingUp"
+            label: "Coming up (auto-populated event cards)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string", hint: "The 3 event cards below are pulled in automatically from upcoming events." }
+          - name: "faq"
+            label: "FAQ (expandable questions)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - name: "items"
+                label: "Questions"
+                widget: "list"
+                summary: "{{fields.question}}"
+                hint: "Each one is a collapsible question/answer. Add, remove, or reorder freely. Answers support markdown for inline links."
+                fields:
+                  - { name: "question", label: "Question", widget: "string" }
+                  - { name: "answer",   label: "Answer",   widget: "text", hint: "Use markdown for inline links, e.g. [More on membership](/membership)." }
+
+      - name: "news-text"
+        label: "News page text"
+        file: "src/data/news-text.json"
+        description: "Wording for the /news landing page. Articles below the hero come from the News content collection automatically."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "lede",    label: "Intro paragraph", widget: "text" }
+          - { name: "featuredEyebrow", label: "Eyebrow above the featured article", widget: "string", hint: "Shown over the most recent / featured article card. e.g. 'Latest'." }
+
+      - name: "maps-text"
+        label: "Mapped areas page text"
+        file: "src/data/maps-text.json"
+        description: "Wording for the /maps page. The map cards themselves come from the Maps content collection."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow",         label: "Eyebrow",  widget: "string" }
+              - { name: "headingTemplate", label: "Heading template", widget: "string", hint: "Use {count} where you want the current number of mapped areas inserted. e.g. '{count} mapped areas across Cornwall.'" }
+              - { name: "lede",            label: "Intro paragraph", widget: "text", hint: "Markdown links allowed, e.g. [RouteGadget →](https://www.cornwall.routegadget.co.uk/rg2/)." }
+          - name: "overview"
+            label: "Overview map (high-level map of every area)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",        label: "Eyebrow", widget: "string", hint: "e.g. 'Where to find them'" }
+              - { name: "heading",        label: "Heading", widget: "string" }
+              - { name: "blurb",          label: "Short blurb above the map", widget: "text" }
+              - { name: "landownerNote",  label: "Landowner-permission note", widget: "text", hint: "Shown in a highlighted box above the map. Markdown allowed - use **double asterisks** for bold, e.g. '**Note:** possession of a map does not imply…'." }
+          - name: "terrainBlurbs"
+            label: "Terrain section blurbs"
+            widget: "object"
+            collapsed: true
+            hint: "One short blurb per terrain type, shown under that section heading on the page."
+            fields:
+              - { name: "urban",    label: "Urban",         widget: "text" }
+              - { name: "parkland", label: "Parkland",      widget: "text" }
+              - { name: "forest",   label: "Forest",        widget: "text" }
+              - { name: "moorland", label: "Moorland",      widget: "text" }
+              - { name: "mtbo",     label: "Mountain bike", widget: "text" }
+              - { name: "mixed",    label: "Mixed terrain", widget: "text" }
+
+      - name: "information-text"
+        label: "Information page text"
+        file: "src/data/information-text.json"
+        description: "Wording for the /information hub. Sub-pages link in automatically from the Info Pages collection - only the headings, blurbs and the 'Around the site' cards are edited here."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "lede",    label: "Intro paragraph", widget: "text", hint: "Markdown links allowed, e.g. [committee](/contacts)." }
+          - name: "topLevel"
+            label: "Around the site (link cards)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - name: "items"
+                label: "Cards"
+                widget: "list"
+                summary: "{{fields.title}} - {{fields.href}}"
+                hint: "Quick-links to other parts of the site. Add, remove, reorder freely."
+                fields:
+                  - { name: "title", label: "Title", widget: "string" }
+                  - { name: "href",  label: "Link",  widget: "string", hint: "e.g. /about or /membership" }
+                  - { name: "desc",  label: "Description", widget: "text" }
+          - name: "sectionLabels"
+            label: "Section labels (the bolded eyebrow for each group of sub-pages)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "governance",    label: "Governance label",    widget: "string" }
+              - { name: "safety",        label: "Safety label",        widget: "string" }
+              - { name: "participation", label: "Participation label", widget: "string" }
+              - { name: "members",       label: "Members' resources label", widget: "string" }
+              - { name: "tips",          label: "Hints and tips label", widget: "string" }
+              - { name: "admin",         label: "Admin label",         widget: "string" }
+          - name: "sectionBlurbs"
+            label: "Section blurbs (one-line description under each group)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "governance",    label: "Governance blurb",    widget: "text" }
+              - { name: "safety",        label: "Safety blurb",        widget: "text" }
+              - { name: "participation", label: "Participation blurb", widget: "text" }
+              - { name: "members",       label: "Members' resources blurb", widget: "text" }
+              - { name: "tips",          label: "Hints and tips blurb", widget: "text" }
+              - { name: "admin",         label: "Admin blurb",         widget: "text" }
+
+      - name: "about-text"
+        label: "About page text"
+        file: "src/data/about-text.json"
+        description: "Every word on the /about page. Sections match the page layout - Hero, What we do, Where we cover, The committee, Become a member, First time. Body fields support markdown - write paragraphs separated by a blank line, use [link text](/url) for links and **bold** for bold."
+        fields:
+          - name: "hero"
+            label: "Hero (top of the page)"
+            widget: "object"
+            collapsed: false
+            fields:
+              - { name: "eyebrow", label: "Eyebrow (above the heading)", widget: "string", hint: "e.g. 'About KERNO'" }
+              - { name: "heading", label: "Heading",                     widget: "string" }
+              - { name: "lede",    label: "Intro paragraph",             widget: "text" }
+          - name: "whatWeDo"
+            label: "What we do (left column, first row)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Body", widget: "text", hint: "Multiple paragraphs allowed - leave a blank line between paragraphs. Use markdown for links and bold." }
+          - name: "whereWeCover"
+            label: "Where we cover (right column, first row)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow", label: "Eyebrow", widget: "string" }
+              - { name: "heading", label: "Heading", widget: "string" }
+              - { name: "body",    label: "Body", widget: "text", hint: "Multiple paragraphs allowed - leave a blank line between paragraphs. Use markdown for links and bold." }
+          - name: "committee"
+            label: "The committee (full-width middle band)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",  label: "Eyebrow", widget: "string" }
+              - { name: "heading",  label: "Heading", widget: "string" }
+              - { name: "body",     label: "Body", widget: "text", hint: "Markdown for inline links, e.g. [get in touch](/contacts)." }
+              - { name: "ctaLabel", label: "Button label", widget: "string" }
+              - { name: "ctaUrl",   label: "Button link",  widget: "string", hint: "e.g. /contacts" }
+          - name: "membership"
+            label: "Become a member (left column, bottom row)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",  label: "Eyebrow", widget: "string" }
+              - { name: "heading",  label: "Heading", widget: "string" }
+              - { name: "body",     label: "Body", widget: "text" }
+              - { name: "ctaLabel", label: "Button label", widget: "string" }
+              - { name: "ctaUrl",   label: "Button link",  widget: "string", hint: "e.g. /membership" }
+          - name: "firstTime"
+            label: "First time? (right column, bottom row)"
+            widget: "object"
+            collapsed: true
+            fields:
+              - { name: "eyebrow",  label: "Eyebrow", widget: "string" }
+              - { name: "heading",  label: "Heading", widget: "string" }
+              - { name: "body",     label: "Body", widget: "text" }
+              - { name: "ctaLabel", label: "Button label", widget: "string" }
+              - { name: "ctaUrl",   label: "Button link",  widget: "string", hint: "e.g. /newcomers" }
+
+      - name: "committee"
+        label: "Committee members"
+        file: "src/data/committee.json"
+        description: "Names, roles, photos and the routing email for each committee member. Photos shown on the Contacts page; emails are never visible on the public site, they're only used to forward contact-form submissions."
+        fields:
+          - name: "members"
+            label: "Members"
+            widget: "list"
+            summary: "{{fields.name}} - {{fields.roles}}"
+            fields:
+              - { name: "name", label: "Name", widget: "string" }
+              - name: "roles"
+                label: "Roles"
+                widget: "list"
+                field: { name: "role", label: "Role", widget: "string" }
+                hint: "One per row, e.g. Chair, Treasurer, Coach."
+              - { name: "photo", label: "Photo", widget: "image", required: false, hint: "Optional. Square-ish portrait works best. Leave blank for a circle with initials." }
+              - { name: "email", label: "Routing email", widget: "string", hint: "Where contact-form submissions for this person go. Never shown publicly." }
+
+  # ─── EVENTS ──────────────────────────────────────────────────────────────
+  - name: "events"
+    label: "Events"
+    label_singular: "Event"
+    description: "Upcoming and past events. The site shows events with a future entry close date as 'upcoming' and past ones as 'results'."
+    folder: "src/content/events"
+    create: true
+    delete: true
+    # Slug + list-view summary both use {{fields.date}} (the raw YAML value)
+    # rather than {{year}}-{{month}}-{{day}} (which Decap derives via JS Date
+    # in UTC and which shifts the displayed/stored day back by one when the
+    # UK is on BST or when the user's runtime differs from UK time). This
+    # keeps the slug and the list view in sync with what's actually saved
+    # in the file's `date:` field.
+    slug: "{{slug}}-{{fields.date}}"
+    summary: "{{title}} - {{fields.date}}"
+    sort: "date:desc"
+    # Per-event upload folder. Files uploaded while editing an event land
+    # in /public/results-archive/{year}/{slug}/ where {slug} is the event's
+    # full slug e.g. "brun-valley-2026-05-15". Filenames can stay as their
+    # SI Timing defaults (index.html, index_clubresults.html, etc) because
+    # they're in a unique folder. Relative links inside the HTML files keep
+    # working because both files share the same folder.
+    media_folder: "../../../public/results-archive/{{year}}/{{slug}}"
+    public_folder: "/results-archive/{{year}}/{{slug}}"
+    fields:
+      - { name: "title", label: "Event title", widget: "string", hint: "e.g. 'Ightenhill South Urban' - short, no format suffix" }
+      - { name: "date", label: "Event date", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false }
+      - { name: "startTime", label: "Last start time", widget: "string", required: false, hint: "e.g. '7:00pm' or '10:30am' - the cut-off after which competitors can no longer start. Shown on the event page as 'Last start time'." }
+      - { name: "entryCloseDate", label: "Entry close date / time", widget: "datetime", picker_utc: false, hint: "When entries close. Drives the auto-transition from upcoming to results." }
+      - { name: "location", label: "Location", widget: "string", hint: "Short label for cards, e.g. 'Cornwall'" }
+      - { name: "venue", label: "Venue", widget: "string", required: false, hint: "Specific building, e.g. 'Ighten Leigh Social Club'" }
+      - { name: "postcode", label: "Postcode", widget: "string", required: false }
+      # ─── Location: pick ONE method, then fill in just that section ──
+      # The dropdown below tells the website which input to read, so the
+      # event can't accidentally have two conflicting locations. Only the
+      # field matching your choice will be used - the other is ignored.
+      - name: "coordsMethod"
+        label: "How are you setting the location?"
+        widget: "select"
+        default: "google"
+        options:
+          - { label: "Pin on a Google Map (recommended)",                    value: "google" }
+          - { label: "Paste coordinates from Google Maps",                   value: "paste"  }
+        hint: "Pick one. Only fill in the matching field below - the other will be ignored when the page builds."
+      - { name: "coordsGoogle", label: "Google Maps pin", widget: "google-map", required: false, hint: "Use this if you chose 'Pin on a Google Map' above. Click or drag the red marker to set the venue location. The coordinates save automatically." }
+      - { name: "coordsPaste", label: "Coordinates from Google Maps", widget: "string", required: false, hint: "Use this if you chose 'Paste coordinates' above. On Google Maps: right-click the venue, then click the numbers at the top of the menu (e.g. 53.79748, -2.22698). They auto-copy. Paste here." }
+      - { name: "what3words", label: "what3words", widget: "string", required: false, hint: "Three-word location for parking / event centre, e.g. 'typically.capacity.skips' (no leading slashes)" }
+      - { name: "gridRef", label: "OS grid reference", widget: "string", required: false, hint: "e.g. 'SD848335'" }
+      - name: "format"
+        label: "Format"
+        widget: "select"
+        options:
+          - "Standard"
+          - "Score"
+          - "Urban"
+          - "Urban Score"
+          - "Street-O"
+          - "Snook-O"
+          - "Snook-O/Ratchet"
+          - "Sprint"
+          - "Night-O"
+          - "Regional"
+          - "MTBO"
+          - "Training"
+        default: "Standard"
+      - name: "level"
+        label: "Event level"
+        widget: "select"
+        options:
+          - { label: "Local", value: "local" }
+          - { label: "Regional", value: "regional" }
+          - { label: "National", value: "national" }
+          - { label: "Major", value: "major" }
+        default: "local"
+      - { name: "series", label: "Series name", widget: "string", required: false, hint: "Optional series this event belongs to, e.g. 'May Street-O'" }
+      - { name: "bofEventNumber", label: "BOF event number", widget: "string", required: true, hint: "British Orienteering event ID, e.g. '87374'. If the event hasn't been registered with BO yet and a number hasn't been assigned, enter 'TBC' - you can come back and edit it once the number is allocated." }
+      - name: "dogsAllowed"
+        label: "Dog policy"
+        widget: "select"
+        required: false
+        options:
+          - { label: "(not specified)", value: "" }
+          - { label: "Dogs welcome",          value: "yes" }
+          - { label: "Dogs on lead only",     value: "on-lead" }
+          - { label: "Dogs not permitted",    value: "no" }
+          - { label: "Not recommended (e.g. urban / Street-O)", value: "not-recommended" }
+      - { name: "dogNotes", label: "Dog policy - extra notes", widget: "text", required: false, hint: "Optional explanation, e.g. 'Taking dogs on urban courses is not recommended due to the traffic hazard.' Renders next to the dropdown answer." }
+      # ─── Officials (optional)
+      - { name: "planner",          label: "Planner",          widget: "string", required: false, hint: "Designs the courses. e.g. 'Richard Edwards (KERNO)'" }
+      - { name: "controller",       label: "Controller",       widget: "string", required: false, hint: "Required for regional+ events. e.g. 'Steve Wilson (KERNO)'" }
+      - { name: "organiser",        label: "Organiser",        widget: "string", required: false, hint: "Runs the event on the day - registration, equipment etc. e.g. 'Hannah Dabinett (KERNO)'" }
+      - { name: "seriesOrganiser",  label: "Series organiser", widget: "string", required: false, hint: "Co-ordinates the multi-event series this event is part of. e.g. 'Kay Hawke (KERNO)'" }
+      - { name: "entryFee", label: "Entry fee", widget: "string", required: false, hint: "Free-text, e.g. 'From £6' or '£6 / £8 pair / £9 trio'" }
+      - { name: "capacity", label: "Entry cap", widget: "number", required: false, value_type: "int", min: 0 }
+      - { name: "siEntriesUrl", label: "SI Entries URL", widget: "string", required: false, hint: "Direct link to the entry form for this event on sientries.co.uk" }
+      - { name: "routeGadgetUrl", label: "RouteGadget URL", widget: "string", required: false }
+      - { name: "summary", label: "Card subtitle", widget: "string", hint: "1-line subtitle shown on cards, e.g. 'Score event · Cornwall · Local level'" }
+      - { name: "description", label: "Hero description", widget: "text", required: false, hint: "1-2 sentences for the homepage featured-event card. Optional." }
+      - { name: "heroImage", label: "Hero photo", widget: "image", required: false, hint: "Optional banner photo shown across the top of the event page." }
+      - { name: "heroImageAlt", label: "Hero photo alt text", widget: "string", required: false, hint: "Optional. Short description for screen readers." }
+      - name: "results"
+        label: "Results files"
+        widget: "list"
+        required: false
+        summary: "{{fields.label}} ({{fields.type}})"
+        fields:
+          - { name: "label", label: "File label", widget: "string", hint: "e.g. 'Full results', 'Splits', 'RouteGadget'" }
+          - { name: "url", label: "Results file or URL", widget: "file", choose_url: true, hint: "Click to pick a file from the Media Library, or click 'Insert from URL' to paste an external link (e.g. RouteGadget)." }
+          - { name: "hidden", label: "Hide this entry from the public site", widget: "boolean", default: false, required: false, hint: "Tick to temporarily hide this single results file (e.g. while corrections are being made). The entry stays in the CMS." }
+          - name: "type"
+            label: "File type"
+            widget: "select"
+            options:
+              - { label: "HTML / web page", value: "html" }
+              - { label: "PDF", value: "pdf" }
+              - { label: "Excel (.xlsx)", value: "xlsx" }
+              - { label: "CSV", value: "csv" }
+      - { name: "preEventInfo", label: "Pre-event briefing", widget: "markdown", required: false, hint: "The 'what to expect on the day' briefing - event format, kit expectations, safety reminders, junior age rules etc. Shown in a blue info panel above the body content. Leave blank if there's nothing event-specific to flag." }
+
+      # ─────── Sections that hide automatically once the event is past
+      # Each of the six fields below appears as its own section on the event
+      # page. The MOMENT entries close, all six disappear from the public
+      # page automatically (so a past-event page only shows what's still
+      # useful - results, map and terrain, course info, contacts via the
+      # report etc.). The content stays in the CMS forever so the committee
+      # can copy it when planning next year's edition. Each section has a
+      # paired "keep visible after event" tick-box - leave it OFF normally;
+      # tick it only for the rare case you want a particular section to
+      # stay visible on a past-event page.
+
+      - { name: "registrationDetails", label: "Registration and start times", widget: "markdown", required: false, hint: "Start window, dibber collection, what to do on arrival. Hidden automatically once the event is past." }
+      - { name: "registrationDetailsKeepAfter", label: "Keep 'Registration and start times' visible after the event", widget: "boolean", default: false, required: false }
+
+      - { name: "directionsAndParking", label: "Directions and parking", widget: "markdown", required: false, hint: "Event centre address, what3words, where to park. Hidden automatically once the event is past." }
+      - { name: "directionsAndParkingKeepAfter", label: "Keep 'Directions and parking' visible after the event", widget: "boolean", default: false, required: false }
+
+      - { name: "entryDetails", label: "Entry details", widget: "markdown", required: false, hint: "Entry fees, SI Entries link, junior age rules, cancellation policy. Hidden automatically once the event is past." }
+      - { name: "entryDetailsKeepAfter", label: "Keep 'Entry details' visible after the event", widget: "boolean", default: false, required: false }
+
+      - { name: "facilities", label: "Facilities", widget: "markdown", required: false, hint: "Toilets, refreshments, changing, indoor space etc. Hidden automatically once the event is past." }
+      - { name: "facilitiesKeepAfter", label: "Keep 'Facilities' visible after the event", widget: "boolean", default: false, required: false }
+
+      # Dog restrictions and Contacts/officials sections removed in the
+      # schema cleanup - dog info is now Dog policy (above) + the optional
+      # Dog policy notes field, and officials live in the four structured
+      # fields (Planner / Controller / Organiser / Series organiser) up top.
+
+      - { name: "disclaimerOverride", label: "Override the standard disclaimer for this event", widget: "boolean", default: false, required: false, hint: "Leave this UNTICKED on every normal event. When unticked, the standard club-wide disclaimer (British Orienteering insurance notice) appears in the yellow box. Tick this ONLY when you want to replace the standard wording with your own bespoke text below - e.g. unusual terrain hazards, parking rules, weather caveats. When ticked, the box below is what appears; the standard wording will NOT be shown." }
+      - name: "disclaimer"
+        label: "Custom disclaimer text (only used when override is ticked)"
+        widget: "markdown"
+        required: false
+        hint: "Only used if 'Override the standard disclaimer' is ticked above. When override is unticked this box is ignored - leave it blank or save notes here for future reference, either way it won't appear on the website."
+      - { name: "report", label: "Event report (post-event)", widget: "markdown", required: false, hint: "Filled in after the event. Lost property, organiser's comments, planner's comments, photos. When you save anything here, a 'Report' button appears next to the results on the event page, linking to a separate page that displays this content." }
+      - { name: "cancelled", label: "Event cancelled", widget: "boolean", default: false, required: false, hint: "Tick this if the event was supposed to happen but isn't anymore. The event still appears on the site, marked 'Cancelled'." }
+      - { name: "hidden", label: "Hide from public site", widget: "boolean", default: false, required: false, hint: "Tick this to remove this event from every public page (homepage, events list, calendar, RSS) without deleting it. Use this for test entries or events not ready for the public yet - much safer than the trash icon." }
+      - { name: "notes", label: "Committee notes", widget: "text", required: false, hint: "Private notes, not shown publicly" }
+      - { name: "body", label: "Long-form description", widget: "markdown", required: false, hint: "Map and terrain, course information and any other content that stays useful AFTER the event. Don't put registration, parking, entry, facilities, dog or contact info here - those have their own fields above and hide automatically once the event is past." }
+      - name: "attachments"
+        label: "File attachments"
+        widget: "list"
+        required: false
+        summary: "{{fields.label}}"
+        hint: "Course details, briefing notes, parking maps, entry forms - anything visitors should be able to download from this event's page. Each attachment becomes a labelled link at the bottom of the event body."
+        fields:
+          - { name: "label", label: "Label shown to readers", widget: "string", hint: "E.g. 'Course details (PDF)' or 'Final entry list'" }
+          - { name: "file", label: "Upload file", widget: "file" }
+          - name: "type"
+            label: "File type"
+            widget: "select"
+            options:
+              - { label: "PDF", value: "pdf" }
+              - { label: "Word document", value: "docx" }
+              - { label: "Spreadsheet", value: "xlsx" }
+              - { label: "CSV", value: "csv" }
+              - { label: "Image", value: "image" }
+              - { label: "Other", value: "other" }
+            default: "pdf"
+            required: false
+      - name: "gallery"
+        label: "Photo gallery (after the event)"
+        widget: "list"
+        required: false
+        summary: "{{fields.alt}}"
+        hint: "Photos taken at the event. Appears as a responsive grid at the bottom of the event page. Add as many as you like - phones tend to make 6–12 a comfortable batch."
+        fields:
+          - { name: "src",     label: "Photo",       widget: "image" }
+          - { name: "alt",     label: "Alt text",    widget: "string", required: false, hint: "Optional. Short description for screen readers, e.g. 'Runners at the start of the long course'." }
+          - { name: "caption", label: "Caption",     widget: "string", required: false, hint: "Optional caption shown under the photo." }
+
+  # ─── NEWS ────────────────────────────────────────────────────────────────
+  - name: "news"
+    label: "News"
+    label_singular: "News article"
+    description: "Race reports, club announcements and news."
+    folder: "src/content/news"
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{title}} - {{year}}-{{month}}-{{day}}"
+    sort: "date:desc"
+    fields:
+      - { name: "title", label: "Headline", widget: "string" }
+      - { name: "date", label: "Publish date", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false }
+      - { name: "summary", label: "Summary / standfirst", widget: "text", hint: "1-2 sentences shown on cards and listings." }
+      - { name: "heroImage", label: "Hero image", widget: "image", required: false }
+      - { name: "heroImageAlt", label: "Hero image alt text", widget: "string", required: false, hint: "Describe the image for screen readers." }
+      - { name: "author", label: "Author", widget: "string", required: false }
+      - name: "gallery"
+        label: "Photo gallery"
+        widget: "list"
+        required: false
+        summary: "{{fields.alt}}"
+        fields:
+          - { name: "src", label: "Image", widget: "image" }
+          - { name: "alt", label: "Alt text", widget: "string", required: false, hint: "Optional. Short description for screen readers." }
+          - { name: "caption", label: "Caption", widget: "string", required: false }
+      - name: "attachments"
+        label: "File attachments"
+        widget: "list"
+        required: false
+        summary: "{{fields.label}}"
+        hint: "PDFs, Word docs, spreadsheets, or images that visitors can download from this article. Each attachment becomes a labelled link at the bottom of the page."
+        fields:
+          - { name: "label", label: "Label shown to readers", widget: "string", hint: "E.g. 'Course details (PDF)' or 'Results spreadsheet'" }
+          - { name: "file", label: "Upload file", widget: "file" }
+          - name: "type"
+            label: "File type"
+            widget: "select"
+            options:
+              - { label: "PDF", value: "pdf" }
+              - { label: "Word document", value: "docx" }
+              - { label: "Spreadsheet", value: "xlsx" }
+              - { label: "CSV", value: "csv" }
+              - { label: "Image", value: "image" }
+              - { label: "Other", value: "other" }
+            default: "pdf"
+            required: false
+      - { name: "draft", label: "Draft (don't publish yet)", widget: "boolean", default: false, required: false }
+      - { name: "featured", label: "Feature this article", widget: "boolean", default: false, required: false, hint: "Pins this article to the top of the news list and uses it as the featured article on the homepage. Use it to bring an older article back to prominence (e.g. a relevant guide that suits the current season). Only one is needed at a time - if you tick it on multiple, the most recent featured article wins on the homepage." }
+      - { name: "order", label: "Manual sort order", widget: "number", required: false, value_type: "int", min: 1, hint: "Optional. Leave blank to keep the default newest-first order. Set a number (lower = higher up the page) to push this article into a specific position. Featured articles always sit above ordered ones." }
+      - { name: "body", label: "Article body", widget: "markdown" }
+
+  # ─── MAPS ────────────────────────────────────────────────────────────────
+  - name: "maps"
+    label: "Maps"
+    label_singular: "Map"
+    description: "The map library - every venue KERNO has surveyed."
+    folder: "src/content/maps"
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{title}}"
+    sort: "title:asc"
+    fields:
+      - { name: "title", label: "Map name", widget: "string", hint: "e.g. 'Hurstwood', 'Towneley Park'" }
+      - { name: "nearTown", label: "Near town", widget: "string", required: false }
+      - name: "terrain"
+        label: "Terrain type"
+        widget: "select"
+        options:
+          - { label: "Urban (streets, estates)", value: "urban" }
+          - { label: "Parkland (parks, gardens)", value: "parkland" }
+          - { label: "Forest (woodland, plantation)", value: "forest" }
+          - { label: "Moorland (open hill)", value: "moorland" }
+          - { label: "Mountain bike (MTBO)", value: "mtbo" }
+          - { label: "Mixed terrain", value: "mixed" }
+        default: "mixed"
+      - { name: "scale", label: "Scale", widget: "string", required: false, hint: "e.g. '1:7500'" }
+      - { name: "contourInterval", label: "Contour interval", widget: "string", required: false, hint: "e.g. '5m'" }
+      - { name: "surveyYear", label: "Year last surveyed", widget: "number", required: false, value_type: "int", min: 1970, max: 2099 }
+      - { name: "surveyor", label: "Surveyor / mapper", widget: "string", required: false }
+      - { name: "permanentCourse", label: "Has permanent course (POC)", widget: "boolean", default: false, required: false }
+      - { name: "permanentCourseUrl", label: "POC link on GoOrienteering", widget: "string", required: false, hint: "British Orienteering's GoOrienteering URL for this POC, e.g. https://www.goorienteering.org.uk/course/peel-park. When set, a button on the map page links visitors to it. Leave blank if the POC is in development or not yet listed." }
+      - name: "coords"
+        label: "Coordinates"
+        widget: "object"
+        required: false
+        collapsed: true
+        fields:
+          - { name: "lat", label: "Latitude", widget: "number", required: false, value_type: "float", step: 0.00001 }
+          - { name: "lng", label: "Longitude", widget: "number", required: false, value_type: "float", step: 0.00001 }
+      # NOTE: the map image is no longer rendered on the public site
+      # (copyright sits with the individual surveyor). Field kept here for
+      # internal records - and so we can re-enable rendering later if
+      # licensing changes - but is now optional.
+      - { name: "image", label: "Map image (internal only - not shown publicly)", widget: "image", required: false, hint: "Optional - for committee records. Not displayed on the live site." }
+      - { name: "imageAlt", label: "Map image alt text", widget: "string", required: false }
+      - { name: "routeGadgetUrl", label: "RouteGadget URL", widget: "string", required: false, hint: "Direct link to this area on RouteGadget - e.g. https://www.cornwall.routegadget.co.uk/rg2/?map=42 - leave blank to fall back to the RG index." }
+      - { name: "summary", label: "Card description", widget: "string", hint: "1-line description shown on the map library page." }
+      - { name: "draft", label: "Draft (don't publish yet)", widget: "boolean", default: false, required: false }
+      - { name: "body", label: "Long-form description", widget: "markdown", required: false, hint: "Area history, access notes, parking, hazards, etc." }
+
+  # ─── ANNOUNCEMENTS ───────────────────────────────────────────────────────
+  - name: "announcements"
+    label: "Announcements"
+    label_singular: "Announcement"
+    description: "Banner messages on the homepage. Used for last-minute event changes, weather warnings, AGM notices, etc. The banner shows only between the validFrom and validUntil dates."
+    folder: "src/content/announcements"
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{title}} ({{validFrom | date('YYYY-MM-DD')}} → {{validUntil | date('YYYY-MM-DD')}})"
+    sort: "validFrom:desc"
+    fields:
+      - { name: "title", label: "Internal title", widget: "string", hint: "For committee reference, not shown publicly. e.g. 'Brun Valley parking change'" }
+      - { name: "message", label: "Banner message", widget: "text", hint: "1–2 sentences. Shown on the homepage between the dates below." }
+      - { name: "validFrom",  label: "Show from",  widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false }
+      - { name: "validUntil", label: "Show until", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false }
+      - name: "severity"
+        label: "Severity"
+        widget: "select"
+        default: "info"
+        options:
+          - { label: "Info (gold)",   value: "info" }
+          - { label: "Warning (plum)", value: "warning" }
+          - { label: "Urgent (red)",   value: "urgent" }
+      - { name: "link",      label: "Link URL (optional)", widget: "string", required: false, hint: "If filled in, banner becomes clickable" }
+      - { name: "linkLabel", label: "Link label",          widget: "string", required: false, hint: "e.g. 'See full details →'" }
+      - { name: "published", label: "Published",           widget: "boolean", default: true }
+
+  # ─── INFO PAGES ──────────────────────────────────────────────────────────
+  - name: "infoPages"
+    label: "Information pages"
+    label_singular: "Information page"
+    description: "Sub-pages of the Information hub - privacy, safeguarding, policies, and similar."
+    folder: "src/content/info-pages"
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{title}}"
+    sort: "section:asc"
+    fields:
+      - { name: "title", label: "Page title", widget: "string" }
+      - { name: "summary", label: "1-line summary", widget: "string", hint: "Shown as the description on the info hub card." }
+      - name: "section"
+        label: "Hub section"
+        widget: "select"
+        options:
+          - { label: "Governance", value: "governance" }
+          - { label: "Safety", value: "safety" }
+          - { label: "Participation", value: "participation" }
+          - { label: "Members' resources", value: "members" }
+          - { label: "Hints and tips", value: "tips" }
+          - { label: "Admin", value: "admin" }
+        required: false
+      - { name: "order", label: "Sort order within section", widget: "number", required: false, value_type: "int" }
+      - { name: "lastReviewed", label: "Last reviewed", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false, required: false }
+      - { name: "draft", label: "Draft (don't publish yet)", widget: "boolean", default: false, required: false }
+      - { name: "wideLayout", label: "Use full-width layout (for pages with wide tables)", widget: "boolean", default: false, required: false, hint: "Hides the right-hand 'Other information' sidebar and shows it as a small dropdown above the page instead. Use this when the page has wide tables - e.g. POC courses." }
+      - { name: "pocMap", label: "Show map of every permanent course at the top", widget: "boolean", default: false, required: false, hint: "Only tick on the Permanent Orienteering Courses page. Renders a Google Map of every POC venue above the body." }
+      - name: "twoColumn"
+        label: "Two-column card block (optional)"
+        widget: "object"
+        required: false
+        collapsed: true
+        hint: "Optional. When set, the page shows two side-by-side columns of cards above the main body. Currently used on /information/types-of-orienteering to split the formats list by terrain (left) vs course style (right). Leave entirely blank on every other info page."
+        fields:
+          - { name: "leftHeading", label: "Left column heading", widget: "string", required: false }
+          - { name: "leftBlurb",   label: "Left column blurb",   widget: "text",   required: false, hint: "Short paragraph shown under the left heading. Optional." }
+          - name: "leftCards"
+            label: "Left column cards"
+            widget: "list"
+            required: false
+            summary: "{{fields.title}}"
+            fields:
+              - { name: "title", label: "Card title", widget: "string" }
+              - { name: "body",  label: "Card body",  widget: "text", hint: "1–3 short sentences. Markdown allowed for inline links and bold." }
+              - { name: "thumbnail",    label: "Card thumbnail (optional)", widget: "image",  required: false, hint: "Small image shown above the card title. On the Types of Orienteering page this is intended for map snippets illustrating terrain types. Leave blank to render a plain text-only card. Landscape crops (e.g. 320×180) work best." }
+              - { name: "thumbnailAlt", label: "Thumbnail alt text",        widget: "string", required: false, hint: "Short description for screen readers. e.g. 'Sample of urban orienteering map showing streets and ginnels'." }
+          - { name: "rightHeading", label: "Right column heading", widget: "string", required: false }
+          - { name: "rightBlurb",   label: "Right column blurb",   widget: "text",   required: false }
+          - name: "rightCards"
+            label: "Right column cards"
+            widget: "list"
+            required: false
+            summary: "{{fields.title}}"
+            fields:
+              - { name: "title", label: "Card title", widget: "string" }
+              - { name: "body",  label: "Card body",  widget: "text", hint: "1–3 short sentences. Markdown allowed for inline links and bold." }
+              - { name: "thumbnail",    label: "Card thumbnail (optional)", widget: "image",  required: false, hint: "Small image shown above the card title. Useful for course-style cards (e.g. an example Score layout). Leave blank to render a plain text-only card." }
+              - { name: "thumbnailAlt", label: "Thumbnail alt text",        widget: "string", required: false }
+      - name: "attachments"
+        label: "File attachments"
+        widget: "list"
+        required: false
+        summary: "{{fields.label}}"
+        hint: "PDFs, Word docs, spreadsheets, or images that visitors can download. Each attachment becomes a labelled link at the bottom of the page."
+        fields:
+          - { name: "label", label: "Label shown to readers", widget: "string", hint: "E.g. 'Safeguarding policy (PDF)' or 'Membership form'" }
+          - { name: "file", label: "Upload file", widget: "file" }
+          - name: "type"
+            label: "File type"
+            widget: "select"
+            options:
+              - { label: "PDF", value: "pdf" }
+              - { label: "Word document", value: "docx" }
+              - { label: "Spreadsheet", value: "xlsx" }
+              - { label: "CSV", value: "csv" }
+              - { label: "Image", value: "image" }
+              - { label: "Other", value: "other" }
+            default: "pdf"
+            required: false
+      - { name: "body", label: "Page content", widget: "markdown" }
+
+  # ─── VIDEOS ──────────────────────────────────────────────────────────────
+  - name: "videos"
+    label: "Videos"
+    label_singular: "Video"
+    description: "Footage hosted on YouTube and embedded on KERNO's site. Each entry just needs a YouTube link - no file upload here; uploads live in our YouTube channel."
+    folder: "src/content/videos"
+    create: true
+    delete: true
+    slug: "{{slug}}"
+    summary: "{{title}}"
+    sort: "date:desc"
+    fields:
+      - { name: "title", label: "Title", widget: "string", hint: "Shown on the /videos page and on the Training page when this is the featured video." }
+      - { name: "youtube", label: "YouTube link", widget: "string", hint: "Paste the share URL from YouTube - e.g. https://youtu.be/9yE6ZLYIXgk. The site extracts the ID automatically." }
+      - { name: "date", label: "Date filmed / published", widget: "datetime", date_format: "YYYY-MM-DD", time_format: false, picker_utc: false }
+      - { name: "summary", label: "1-line summary", widget: "text", hint: "Short standfirst shown next to the embed. Inline markdown allowed." }
+      - { name: "description", label: "Longer description", widget: "markdown", required: false, hint: "Optional. Extra context shown below the embed." }
+      - { name: "featured", label: "Featured video", widget: "boolean", default: false, required: false, hint: "Tick this on the single video you want pinned to the top of /videos AND surfaced on the Training page. If more than one is ticked, the most recent wins." }
+      - { name: "hidden", label: "Hide from public site", widget: "boolean", default: false, required: false, hint: "Tick to remove this video from every public page without deleting it." }

@@ -1,0 +1,184 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+import { parseYouTubeId, youTubeEmbedSrc, youTubeThumbnail } from '../lib/youtube.ts';
+
+// Pull every non-hidden video. Featured-first, then newest-first within
+// the unfeatured group. Editors tick "Featured" on whichever video the
+// committee currently wants promoted; only the very first featured one
+// also appears on the Training page (see src/pages/training.astro).
+const all = await getCollection('videos');
+const videos = all
+  .filter(v => !v.data.hidden)
+  .map(v => {
+    const id = parseYouTubeId(v.data.youtube);
+    return id ? { ...v, _id: id } : null;
+  })
+  .filter((v): v is NonNullable<typeof v> => v !== null)
+  .sort((a, b) => {
+    if (a.data.featured && !b.data.featured) return -1;
+    if (!a.data.featured && b.data.featured) return 1;
+    return new Date(b.data.date).getTime() - new Date(a.data.date).getTime();
+  });
+
+const fmtMonthYear = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  month: 'long', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+const inline = (s: string) => marked.parseInline(s ?? '') as string;
+---
+<Layout
+  title="Videos - KERNO"
+  description="Footage from KERNO training events, races and club activities."
+>
+  <PageHero
+    page="videos"
+    eyebrow="Watch"
+    heading="KERNO videos"
+    lede="Footage from training sessions, events and club activities. Every video is hosted on YouTube - clicking play will load it from there."
+  />
+
+  <main id="main">
+    <section class="videos-list">
+      <div class="videos-list-wrap">
+        {videos.length === 0 && (
+          <p class="videos-empty">No videos yet. Check back soon.</p>
+        )}
+        {videos.map((v, i) => (
+          <article class="video-card">
+            <div class="video-embed">
+              <iframe
+                src={youTubeEmbedSrc(v._id)}
+                title={v.data.title}
+                loading={i === 0 ? "eager" : "lazy"}
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <div class="video-meta">
+              {v.data.featured && <p class="video-tag">Featured</p>}
+              <h2>{v.data.title}</h2>
+              <p class="video-date">{fmtMonthYear(new Date(v.data.date))}</p>
+              <p class="video-summary" set:html={inline(v.data.summary)} />
+              <a
+                class="video-yt-link"
+                href={`https://www.youtube.com/watch?v=${v._id}`}
+                rel="noopener"
+                target="_blank"
+              >
+                Watch on YouTube <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  </main>
+</Layout>
+
+<style>
+  .videos-list {
+    padding: clamp(36px, 5vw, 72px) var(--pad-x);
+  }
+  .videos-list-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(40px, 5vw, 64px);
+  }
+  .videos-empty {
+    color: var(--ink-soft);
+    font-size: 16px;
+    text-align: center;
+    margin: 32px 0;
+  }
+  .video-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 40px);
+    align-items: start;
+  }
+  .video-embed {
+    position: relative;
+    width: 100%;
+    /* 16:9 - standard YouTube aspect ratio. Letterboxing for older clips
+       handled by YouTube itself. */
+    aspect-ratio: 16 / 9;
+    background: var(--navy-deep);
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+  }
+  .video-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .video-meta { display: flex; flex-direction: column; }
+  .video-tag {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--ink);
+    align-self: flex-start;
+    padding: 4px 10px;
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 12px 0;
+  }
+  .video-meta h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2.2vw, 30px);
+    line-height: 1.15;
+    color: var(--navy);
+    margin: 0 0 6px 0;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+  }
+  .video-date {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 14px 0;
+  }
+  .video-summary {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 0 0 18px 0;
+  }
+  .video-summary :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+  }
+  .video-summary :global(a:hover) { color: var(--plum); text-decoration-color: var(--plum); }
+  .video-yt-link {
+    align-self: flex-start;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 1px;
+    transition: color .18s ease, border-color .18s ease;
+  }
+  .video-yt-link:hover { color: var(--plum); border-bottom-color: var(--plum); }
+
+  @media (max-width: 760px) {
+    .video-card { grid-template-columns: 1fr; gap: 16px; }
+  }
+</style>

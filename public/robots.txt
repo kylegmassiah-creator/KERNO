@@ -1,0 +1,9 @@
+# Cornwall Orienteering Club — crawler directives
+# PREVIEW MODE: blocking all crawlers while this is a demo on a *.pages.dev URL.
+# When you point the real cornwallorienteering.org.uk domain at this site,
+# replace the block below with:
+#   User-agent: *
+#   Allow: /
+#   Sitemap: https://cornwallorienteering.org.uk/sitemap-index.xml
+User-agent: *
+Disallow: /

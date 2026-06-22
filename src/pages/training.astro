@@ -1,0 +1,299 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+import { parseYouTubeId, youTubeEmbedSrc } from '../lib/youtube.ts';
+// All copy lives in src/data/training-text.json - edit via the CMS
+// at /admin → Site settings → Training page text. Body fields render
+// as markdown (paragraphs, links, bold).
+import text from '../data/training-text.json';
+marked.setOptions({ gfm: true, breaks: false });
+const md = (s: string) => marked.parse(s ?? '');
+const inline = (s: string) => marked.parseInline(s ?? '') as string;
+
+// Surface the currently featured video at the top of the Training page.
+// Falls back to the most-recent video when nothing is marked featured.
+// If the videos collection is empty, the block doesn't render at all
+// (the rest of the page is unchanged).
+const allVideos = await getCollection('videos');
+const visibleVideos = allVideos
+  .filter(v => !v.data.hidden)
+  .sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+const featuredVideo =
+  visibleVideos.find(v => v.data.featured) ?? visibleVideos[0] ?? null;
+const featuredVideoId = featuredVideo ? parseYouTubeId(featuredVideo.data.youtube) : null;
+---
+<Layout
+  title="Training, Cornwall Orienteering Club"
+  description="Coaching and skills training for KERNO members, map reading, route choice, night orienteering and more."
+>
+
+<main id="main">
+
+  <PageHero
+    page="training"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  />
+
+  {featuredVideo && featuredVideoId && (
+    <section class="training-video">
+      <div class="training-video-wrap">
+        <div class="training-video-embed">
+          <iframe
+            src={youTubeEmbedSrc(featuredVideoId)}
+            title={featuredVideo.data.title}
+            loading="lazy"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allowfullscreen
+          ></iframe>
+        </div>
+        <div class="training-video-meta">
+          <p class="eyebrow">Watch · Featured</p>
+          <h2>{featuredVideo.data.title}</h2>
+          <p class="training-video-summary" set:html={inline(featuredVideo.data.summary)} />
+          <a class="training-video-more" href="/videos">All KERNO videos →</a>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="info-block">
+    <div class="info-wrap text-cols">
+      <div>
+        <p class="eyebrow">{text.forNewcomers.eyebrow}</p>
+        <h2>{text.forNewcomers.heading}</h2>
+        <div class="md-body" set:html={md(text.forNewcomers.body)} />
+      </div>
+      <div>
+        <p class="eyebrow">{text.forExperienced.eyebrow}</p>
+        <h2>{text.forExperienced.heading}</h2>
+        <div class="md-body" set:html={md(text.forExperienced.body)} />
+      </div>
+    </div>
+  </section>
+
+  <section class="info-block alt">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.selfLed.eyebrow}</p>
+      <h2>{text.selfLed.heading}</h2>
+      <div class="resources-grid">
+        {text.selfLed.resources.map(r => (
+          <div class="resource">
+            <h3>{r.title}</h3>
+            <div class="md-body" set:html={md(r.body)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 64ch;
+    margin: 0;
+  }
+
+  .info-block { padding: clamp(48px, 5vw, 80px) var(--pad-x); }
+  .info-block.alt { background: var(--paper-2); }
+  .info-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .info-block .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .info-block .eyebrow::before { background: var(--plum); }
+  .info-block h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 38px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 18px 0;
+    max-width: 22ch;
+  }
+  .info-block h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    color: var(--ink);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 8px 0;
+    border-top: 2px solid var(--plum);
+    padding-top: 12px;
+  }
+  .info-block p,
+  .info-block :global(.md-body p) {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+    max-width: 60ch;
+  }
+  .info-block a,
+  .info-block :global(.md-body a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .info-block a:hover,
+  .info-block a:focus-visible,
+  .info-block :global(.md-body a:hover),
+  .info-block :global(.md-body a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  .info-block :global(.md-body strong) { color: var(--ink); font-weight: 500; }
+
+  .text-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(32px, 5vw, 64px);
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .text-cols { grid-template-columns: 1fr; }
+  }
+
+  .resources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 28px 36px;
+  }
+
+  /* ─── Featured video block ─────────────────────────────────────────
+     Inserts between the page hero and the "For newcomers / For
+     experienced" columns. Surfaces whichever video is ticked Featured
+     in the CMS (or the most recent one if nothing is featured). The
+     whole block hides automatically when the videos collection is
+     empty, so this section doesn't need any maintenance - Andy just
+     adds/edits videos under the Videos collection. */
+  .training-video {
+    background: var(--paper);
+    padding: clamp(32px, 4vw, 56px) var(--pad-x);
+    border-bottom: 1px solid var(--rule);
+  }
+  .training-video-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: clamp(20px, 3vw, 40px);
+    align-items: center;
+  }
+  .training-video-embed {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--navy-deep);
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+  }
+  .training-video-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .training-video-meta { display: flex; flex-direction: column; }
+  .training-video-meta .eyebrow {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin: 0 0 12px 0;
+  }
+  .training-video-meta .eyebrow::before {
+    /* Same orienteering-start triangle as elsewhere on the site. */
+    content: "";
+    display: inline-block;
+    width: 10px; height: 10px;
+    margin-right: 8px;
+    vertical-align: middle;
+    background: var(--plum);
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  }
+  .training-video-meta h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2.2vw, 30px);
+    line-height: 1.15;
+    color: var(--navy);
+    margin: 0 0 12px 0;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+  }
+  .training-video-summary {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 0 0 16px 0;
+  }
+  /* Inline link inside the featured-video summary. Belt-and-braces
+     coverage - summaries don't currently contain markdown links but
+     a future entry might. set:html bypasses Astro scoping. */
+  .training-video-summary :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .training-video-summary :global(a:hover),
+  .training-video-summary :global(a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  .training-video-more {
+    align-self: flex-start;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 1px;
+    transition: color .18s ease, border-color .18s ease;
+  }
+  .training-video-more:hover { color: var(--plum); border-bottom-color: var(--plum); }
+
+  @media (max-width: 880px) {
+    .training-video-wrap { grid-template-columns: 1fr; gap: 16px; }
+  }
+</style>

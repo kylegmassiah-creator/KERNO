@@ -1,0 +1,14 @@
+{
+  "_comment": "Text content for the /events (Fixtures) page. Body fields support markdown.",
+  "hero": {
+    "eyebrow": "Fixtures",
+    "heading": "Orienteering fixtures across Cornwall.",
+    "lede": "Our fixtures take place throughout the year and vary in format - from woodland and moorland events to summer urban races and coastal courses. Whatever your experience, there's a course to suit you, and newcomers are always welcome."
+  },
+  "neighboursCtaLabel": "Fixtures from neighbouring clubs",
+  "neighbours": {
+    "eyebrow": "Neighbouring clubs",
+    "intro": "Upcoming events run by orienteering clubs across the wider South West region, including Devon. KERNO members and non-members are welcome to enter; most events accept pre-entry through the usual sign-up sites such as SI Entries, Racesignup and Fabian4. \nFor a national overview see British Orienteering's full event listing →](https://www.britishorienteering.org.uk/event).",
+    "loadingNote": "Loading upcoming events from British Orienteering…"
+  }
+}

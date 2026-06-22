@@ -1,0 +1,327 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+<Layout
+  title="Search, Cornwall Orienteering Club"
+  description="Search KERNO events, news, maps and information pages."
+  noindex={true}
+>
+
+<main id="main">
+
+  <PageHero
+    page="search"
+    eyebrow="Search"
+    heading="Find what you're looking for."
+    lede="Search across all events, news, maps and information pages on the KERNO site. Try a venue name, event format, or anything you remember."
+  />
+
+  <section class="search-section">
+    <div class="search-wrap">
+
+      <!-- Search form. Submits via JS to Pagefind's underlying API,
+           so results only fetch when you click Search rather than
+           on every keystroke. Falls back gracefully if JS is off. -->
+      <form id="search-form" class="search-form" autocomplete="off">
+        <label class="visually-hidden" for="search-input">Search the site</label>
+        <div class="search-row">
+          <input
+            id="search-input"
+            type="search"
+            name="q"
+            placeholder="Try a venue name, event format, or year…"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          >
+          <button type="submit" class="search-submit">Search →</button>
+        </div>
+      </form>
+
+      <p id="search-status" class="search-status" role="status" aria-live="polite"></p>
+
+      <ol id="search-results" class="search-results" aria-label="Search results"></ol>
+
+      <noscript>
+        <p class="search-help">
+          On-site search needs JavaScript. Use the quick links below, or open the site map at the foot of any page.
+        </p>
+      </noscript>
+
+      <div class="quick-links">
+        <p class="eyebrow">Or jump straight to</p>
+        <ul>
+          <li><a href="/events">Events calendar</a></li>
+          <li><a href="/events#past">Past results</a></li>
+          <li><a href="/maps">Map library</a></li>
+          <li><a href="/news">News</a></li>
+          <li><a href="/newcomers">Newcomers' guide</a></li>
+          <li><a href="/membership">Membership</a></li>
+          <li><a href="/contacts">Committee contacts</a></li>
+          <li><a href="/information">Information hub</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pagefind low-level API. We use the underlying library directly
+       rather than PagefindUI so we control exactly when search runs
+       (only on submit), and surface real errors when something fails
+       rather than hanging silently. -->
+  <script is:inline type="module">
+    const form    = document.getElementById('search-form');
+    const input   = document.getElementById('search-input');
+    const status  = document.getElementById('search-status');
+    const results = document.getElementById('search-results');
+
+    let pagefind = null;
+
+    async function ensurePagefind() {
+      if (pagefind) return pagefind;
+      status.textContent = 'Loading search…';
+      try {
+        const mod = await import('/pagefind/pagefind.js');
+        if (typeof mod.options === 'function') {
+          await mod.options({ baseUrl: '/' });
+        }
+        pagefind = mod;
+        return pagefind;
+      } catch (err) {
+        status.textContent = 'Could not load search engine: ' + err.message;
+        throw err;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, ch => ({
+        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+      }[ch]));
+    }
+
+    async function runSearch(query) {
+      results.innerHTML = '';
+      status.textContent = 'Searching…';
+      let pf;
+      try {
+        pf = await ensurePagefind();
+      } catch (e) { return; }
+
+      try {
+        const search = await pf.search(query);
+        if (!search || !search.results || search.results.length === 0) {
+          status.textContent = 'No results for "' + query + '". Try a different word, or use the quick links below.';
+          return;
+        }
+
+        const top = search.results.slice(0, 30);
+        const fetched = await Promise.all(top.map(r => r.data()));
+
+        status.textContent = 'Found ' + search.results.length + ' result' +
+          (search.results.length === 1 ? '' : 's') + ' for "' + query + '".';
+
+        const html = fetched.map(d => {
+          const title = d.meta && d.meta.title ? d.meta.title : d.url;
+          const excerpt = d.excerpt || '';
+          return '<li class="search-result">' +
+            '<a href="' + escapeHtml(d.url) + '">' +
+              '<h3>' + escapeHtml(title) + '</h3>' +
+              '<p class="search-result-excerpt">' + excerpt + '</p>' +
+              '<p class="search-result-url">' + escapeHtml(d.url) + '</p>' +
+            '</a>' +
+          '</li>';
+        }).join('');
+        results.innerHTML = html;
+      } catch (err) {
+        status.textContent = 'Search failed: ' + err.message + '. Try refreshing the page.';
+        console.error('[search] error:', err);
+      }
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) {
+        status.textContent = 'Type something first.';
+        return;
+      }
+      runSearch(q);
+    });
+
+    // If the user arrived with ?q=foo (e.g. from the 404 page's search box),
+    // pre-fill and run the search immediately.
+    const params = new URLSearchParams(window.location.search);
+    const initial = params.get('q');
+    if (initial) {
+      input.value = initial;
+      runSearch(initial.trim());
+    } else {
+      input.focus();
+    }
+  </script>
+
+</main>
+
+</Layout>
+
+<style>
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  .search-section { padding: clamp(40px, 5vw, 64px) var(--pad-x); }
+  .search-wrap { max-width: 720px; margin: 0 auto; }
+
+  /* Search form */
+  .search-form { margin-bottom: 18px; }
+  .search-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+  .search-row input {
+    font-family: var(--ff-body);
+    font-size: 17px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--rule-2);
+    padding: 14px 16px;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .search-row input:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: -1px;
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+  .search-submit {
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-body);
+    font-weight: 500;
+    font-size: 16px;
+    padding: 12px 24px;
+    border: 0;
+    cursor: pointer;
+    transition: background .18s, color .18s;
+  }
+  .search-submit:hover {
+    background: var(--ink);
+    color: var(--gold);
+  }
+  @media (max-width: 520px) {
+    .search-row { grid-template-columns: 1fr; }
+  }
+
+  .search-status {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 18px 0;
+    min-height: 1.4em;
+  }
+
+  .search-results {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .search-result {
+    border-bottom: 1px solid var(--rule);
+  }
+  .search-result a {
+    display: block;
+    padding: 18px 0;
+    color: var(--ink);
+    transition: background .18s ease;
+  }
+  .search-result a:hover { background: var(--paper-2); }
+  .search-result h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    color: var(--navy);
+    margin: 0 0 6px 0;
+    letter-spacing: -0.01em;
+  }
+  .search-result a:hover h3 { color: var(--plum); }
+  .search-result-excerpt {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 6px 0;
+  }
+  .search-result-excerpt :global(mark) {
+    background: var(--gold);
+    color: var(--ink);
+    padding: 0 2px;
+    border-radius: 0;
+  }
+  .search-result-url {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+    margin: 0;
+    word-break: break-all;
+  }
+
+  .search-help {
+    font-size: 13px;
+    color: var(--ink-mute);
+    margin: 0 0 40px 0;
+  }
+
+  .quick-links { margin-top: 40px; padding-top: 28px; border-top: 1px solid var(--rule); }
+  .quick-links .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .quick-links .eyebrow::before { background: var(--plum); }
+  .quick-links ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 24px;
+  }
+  .quick-links a {
+    display: block;
+    padding: 6px 0;
+    font-size: 15px;
+    color: var(--ink);
+    border-bottom: 1px solid transparent;
+    transition: color .18s, border-color .18s;
+  }
+  .quick-links a:hover { color: var(--plum); border-bottom-color: var(--plum); }
+</style>

@@ -1,0 +1,683 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Attachments from '../../components/Attachments.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const news = await getCollection('news');
+  return news
+    .filter(n => !n.data.draft)
+    .map(item => ({
+      params: { slug: item.id },
+      props: { item },
+    }));
+}
+
+const { item } = Astro.props;
+const { Content } = await render(item);
+
+// ─────── Earlier articles for the "More news" footer
+const allNews = (await getCollection('news'))
+  .filter(n => !n.data.draft && n.id !== item.id)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .slice(0, 3);
+
+// ─────── Date formatting
+const fmtDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const fmtShort = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+}).format(d);
+
+// ─────── Schema.org Article JSON-LD
+const siteUrl = Astro.site ?? new URL("https://cornwallorienteering.org.uk");
+const canonical = new URL(Astro.url.pathname, siteUrl).toString();
+const heroImageAbs = item.data.heroImage
+  ? new URL(item.data.heroImage, siteUrl).toString()
+  : new URL("/assets/cornwall-logo.png", siteUrl).toString();
+
+const articleJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  headline: item.data.title,
+  description: item.data.summary,
+  image: [heroImageAbs],
+  datePublished: item.data.date.toISOString(),
+  dateModified: item.data.date.toISOString(),
+  url: canonical,
+  author: item.data.author
+    ? { "@type": "Person", name: item.data.author }
+    : { "@type": "Organization", name: "Cornwall Orienteering Club" },
+  publisher: {
+    "@type": "Organization",
+    name: "Cornwall Orienteering Club",
+    logo: {
+      "@type": "ImageObject",
+      url: new URL("/assets/cornwall-logo.png", siteUrl).toString(),
+    },
+  },
+  mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+};
+---
+<Layout
+  title={`${item.data.title}, KERNO News`}
+  description={item.data.summary}
+  ogType="article"
+  {...(item.data.heroImage ? { ogImage: item.data.heroImage } : {})}
+  publishedTime={item.data.date.toISOString()}
+>
+
+<Fragment slot="head">
+  <script type="application/ld+json" set:html={JSON.stringify(articleJsonLd)}></script>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl.toString() },
+      { "@type": "ListItem", position: 2, name: "News", item: new URL("/news", siteUrl).toString() },
+      { "@type": "ListItem", position: 3, name: item.data.title, item: canonical },
+    ],
+  })}></script>
+</Fragment>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Article hero -->
+  <article class="article-hero">
+    <div class="article-hero-wrap">
+      <a class="back-link" href="/news">← All news</a>
+      <p class="eyebrow">News</p>
+      <h1>{item.data.title}</h1>
+      <p class="article-meta">
+        <time datetime={item.data.date.toISOString()}>{fmtDate(item.data.date)}</time>
+        {item.data.author && <span aria-hidden="true"> · </span>}
+        {item.data.author && <span>by {item.data.author}</span>}
+      </p>
+      <p class="article-summary">{item.data.summary}</p>
+    </div>
+
+    {item.data.heroImage && (
+      <div class="article-hero-image">
+        <img src={item.data.heroImage} alt={item.data.heroImageAlt || item.data.title}>
+      </div>
+    )}
+  </article>
+
+  <!-- ─────────────────────────── Body -->
+  <article class="article-body">
+    <div class="article-body-wrap">
+      <div class="article-prose">
+        <Content />
+        {item.data.attachments && item.data.attachments.length > 0 && (
+          <Attachments attachments={item.data.attachments} />
+        )}
+      </div>
+    </div>
+  </article>
+
+  <!-- ─────────────────────────── Gallery (optional) - paginated carousel -->
+  {item.data.gallery && item.data.gallery.length > 0 && (
+    <section class="article-gallery">
+      <div class="article-gallery-wrap">
+        <h2>More photos</h2>
+      </div>
+      <div class="gallery-carousel" data-count={item.data.gallery.length}>
+        <button type="button" class="gallery-nav gallery-nav-prev" aria-label="Previous photos">‹</button>
+        <div class="gallery-viewport">
+          <ul class="gallery-track">
+            {item.data.gallery.map(image => (
+              <li class="gallery-slide">
+                <a href={image.src} class="gallery-lightbox-link" data-caption={image.caption ?? ""}>
+                  <img src={image.src} alt={image.alt ?? ""} loading="lazy">
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <button type="button" class="gallery-nav gallery-nav-next" aria-label="Next photos">›</button>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── More news -->
+  {allNews.length > 0 && (
+    <section class="more-news">
+      <div class="more-news-wrap">
+        <div class="sec-head">
+          <p class="eyebrow">More news</p>
+          <a class="sec-link" href="/news">All news →</a>
+        </div>
+        <ul class="more-news-grid">
+          {allNews.map(other => (
+            <li>
+              <a class="more-news-card" href={`/news/${other.id}`}>
+                <time datetime={other.data.date.toISOString()}>{fmtShort(other.data.date)}</time>
+                <h3>{other.data.title}</h3>
+                <p>{other.data.summary}</p>
+                <span class="more-news-read" aria-hidden="true">Read →</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Lightbox overlay (for gallery photos) -->
+  <div id="gallery-lightbox" class="gallery-lightbox" hidden>
+    <button type="button" class="gallery-lightbox-close" aria-label="Close">×</button>
+    <button type="button" class="gallery-lightbox-prev" aria-label="Previous">‹</button>
+    <img class="gallery-lightbox-img" src="" alt="">
+    <p class="gallery-lightbox-caption"></p>
+    <button type="button" class="gallery-lightbox-next" aria-label="Next">›</button>
+  </div>
+
+</main>
+
+<script>
+  // ─────── Simple inline lightbox for the news gallery. Click a photo to
+  // open a full-screen overlay, navigate with arrow keys or the on-screen
+  // buttons, close with Escape or the × button.
+  (function () {
+    const links = Array.from(document.querySelectorAll('.gallery-lightbox-link'));
+    const allLinks = links;
+    if (links.length === 0) return;
+
+    // Carousel: prev/next step through slides, wrapping at either end.
+    const carousel = document.querySelector('.gallery-carousel');
+    if (carousel) {
+      const track = carousel.querySelector('.gallery-track');
+      const slides = track.querySelectorAll('.gallery-slide');
+      const total = slides.length;
+      const prevBtn = carousel.querySelector('.gallery-nav-prev');
+      const nextBtn = carousel.querySelector('.gallery-nav-next');
+      let pos = 0;
+
+      // Mobile shows 1 photo, desktop shows 3. Limit pos to never overshoot
+      // into trailing empty slots when the photo count isn't a multiple of 3.
+      function visibleCount() {
+        return window.matchMedia('(max-width: 720px)').matches ? 1 : 3;
+      }
+      function maxPos() {
+        return Math.max(0, total - visibleCount());
+      }
+      function update() {
+        if (!slides[0]) return;
+        const slot = slides[0].getBoundingClientRect().width + 16; // 16 = gap
+        track.style.transform = `translateX(${-pos * slot}px)`;
+      }
+      function step(dir) {
+        const m = maxPos();
+        pos += dir;
+        if (pos > m) pos = 0;
+        if (pos < 0) pos = m;
+        update();
+      }
+      if (prevBtn) prevBtn.addEventListener('click', () => step(-1));
+      if (nextBtn) nextBtn.addEventListener('click', () => step(1));
+      window.addEventListener('resize', () => {
+        if (pos > maxPos()) pos = maxPos();
+        update();
+      });
+
+      // Swipe support on touch devices
+      let touchStart = 0;
+      track.addEventListener('touchstart', (e) => { touchStart = e.touches[0].clientX; }, { passive: true });
+      track.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - touchStart;
+        if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+      });
+    }
+    const lb = document.getElementById('gallery-lightbox');
+    if (!lb) return;
+    const img = lb.querySelector('.gallery-lightbox-img');
+    const cap = lb.querySelector('.gallery-lightbox-caption');
+    const closeBtn = lb.querySelector('.gallery-lightbox-close');
+    const prevBtn  = lb.querySelector('.gallery-lightbox-prev');
+    const nextBtn  = lb.querySelector('.gallery-lightbox-next');
+    let idx = 0;
+
+    function show(i) {
+      idx = (i + links.length) % links.length;
+      const a = links[idx];
+      img.src = a.getAttribute('href');
+      img.alt = a.querySelector('img').alt || '';
+      const captionText = a.getAttribute('data-caption') || '';
+      cap.textContent = captionText;
+      cap.style.display = captionText ? 'block' : 'none';
+      lb.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+    function hide() {
+      lb.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    // Wire click handlers on every rendered link (including duplicates).
+    // Map each clicked link to its position in the unique set so prev/next
+    // works whether the user clicked an original or a duplicate.
+    allLinks.forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const href = a.getAttribute('href');
+        const idx = links.findIndex(l => l.getAttribute('href') === href);
+        show(idx === -1 ? 0 : idx);
+      });
+    });
+    closeBtn.addEventListener('click', hide);
+    prevBtn.addEventListener('click', () => show(idx - 1));
+    nextBtn.addEventListener('click', () => show(idx + 1));
+    lb.addEventListener('click', (e) => { if (e.target === lb) hide(); });
+    document.addEventListener('keydown', (e) => {
+      if (lb.hidden) return;
+      if (e.key === 'Escape') hide();
+      else if (e.key === 'ArrowLeft')  show(idx - 1);
+      else if (e.key === 'ArrowRight') show(idx + 1);
+    });
+  })();
+</script>
+
+</Layout>
+
+<style>
+  /* ─────────────────────────── Article hero */
+  .article-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(28px, 4vw, 48px) var(--pad-x) 0;
+  }
+  .article-hero-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-bottom: clamp(28px, 3vw, 40px);
+  }
+  .back-link {
+    display: inline-block;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 28px;
+    transition: color .18s ease;
+  }
+  .back-link:hover { color: var(--plum); }
+
+  .article-hero .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 16px;
+  }
+  .article-hero .eyebrow::before { background: var(--plum); }
+
+  .article-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(32px, 4.4vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 18px 0;
+    color: var(--ink);
+  }
+  .article-meta {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    margin: 0 0 22px 0;
+  }
+  .article-meta span { color: var(--ink-mute); }
+  .article-summary {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(17px, 1.5vw, 22px);
+    line-height: 1.4;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 60ch;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+  }
+
+  .article-hero-image {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 0 var(--pad-x);
+    transform: translateY(48px);
+    margin-bottom: 48px;
+  }
+  .article-hero-image img {
+    width: 100%;
+    height: auto;
+    display: block;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.35);
+  }
+
+  /* ─────────────────────────── Body */
+  .article-body {
+    padding: clamp(32px, 4vw, 60px) var(--pad-x);
+  }
+  .article-body-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .article-prose :global(h2) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(24px, 2.4vw, 30px);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--navy);
+    margin: 36px 0 14px 0;
+  }
+  .article-prose :global(h2:first-child) { margin-top: 0; }
+  .article-prose :global(h3) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 21px;
+    color: var(--ink);
+    margin: 28px 0 10px 0;
+  }
+  .article-prose :global(p) {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink);
+    margin: 0 0 18px 0;
+  }
+  .article-prose :global(strong) { color: var(--ink); font-weight: 500; }
+  .article-prose :global(ul), .article-prose :global(ol) {
+    margin: 0 0 18px 1.4em;
+    padding: 0;
+  }
+  .article-prose :global(li) {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .article-prose :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 2px;
+  }
+  .article-prose :global(a:hover) { color: var(--plum); }
+  /* Responsive YouTube / video embeds inside a news article body.
+     Editors wrap an iframe in a `<div class="video-embed-wrap">`
+     directly in the markdown (the news collection allows raw HTML).
+     This gives us a 16:9 letterbox that scales with the column. */
+  .article-prose :global(.video-embed-wrap) {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--navy-deep);
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+    margin: 24px 0;
+  }
+  .article-prose :global(.video-embed-wrap iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .article-prose :global(blockquote) {
+    border-left: 3px solid var(--plum);
+    padding: 6px 0 6px 20px;
+    margin: 24px 0;
+    font-family: var(--ff-display);
+    font-size: 19px;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+  }
+
+  /* ─────────────────────────── Gallery */
+  .article-gallery {
+    background: var(--paper-2);
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+  }
+  .article-gallery-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .article-gallery h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 28px;
+    color: var(--navy);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 24px 0;
+  }
+  /* ── Paginated carousel: shows 3 photos on desktop, 1 on mobile, with
+     prev/next buttons. Wraps at either end. */
+  .gallery-carousel {
+    position: relative;
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 0 60px;
+  }
+  .gallery-viewport {
+    overflow: hidden;
+  }
+  .gallery-track {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 16px;
+    transition: transform .4s cubic-bezier(.2,.6,.2,1);
+  }
+  .gallery-slide {
+    flex: 0 0 calc((100% - 32px) / 3); /* 3 visible with 2 gaps */
+    min-width: 0;
+  }
+  .gallery-slide a {
+    display: block;
+    cursor: zoom-in;
+    overflow: hidden;
+    background: var(--paper-2);
+    aspect-ratio: 4 / 3;
+  }
+  .gallery-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .25s ease, filter .25s ease;
+  }
+  .gallery-slide a:hover img,
+  .gallery-slide a:focus-visible img {
+    transform: scale(1.04);
+    filter: brightness(1.05);
+  }
+
+  /* Prev / Next nav buttons - visible on all devices */
+  .gallery-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: var(--paper);
+    border: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    transition: background .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gallery-nav:hover { background: var(--navy); }
+  .gallery-nav-prev { left: 8px; }
+  .gallery-nav-next { right: 8px; }
+
+  @media (max-width: 720px) {
+    .gallery-carousel { padding: 0 48px; }
+    .gallery-slide { flex: 0 0 100%; } /* 1 photo per page on mobile */
+    .gallery-slide a { aspect-ratio: 16 / 11; }
+    .gallery-nav { width: 38px; height: 38px; font-size: 24px; }
+    .gallery-nav-prev { left: 4px; }
+    .gallery-nav-next { right: 4px; }
+  }
+
+  /* ─────────────────────────── Lightbox overlay */
+  .gallery-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 22, 35, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 1000;
+    padding: 24px;
+  }
+  .gallery-lightbox[hidden] { display: none; }
+  .gallery-lightbox-img {
+    max-width: min(96vw, 1400px);
+    max-height: 82vh;
+    object-fit: contain;
+    display: block;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+  }
+  .gallery-lightbox-caption {
+    color: var(--paper);
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+    margin: 16px 0 0 0;
+    max-width: 60ch;
+  }
+  .gallery-lightbox-close,
+  .gallery-lightbox-prev,
+  .gallery-lightbox-next {
+    position: absolute;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: var(--paper);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease;
+  }
+  .gallery-lightbox-close:hover,
+  .gallery-lightbox-prev:hover,
+  .gallery-lightbox-next:hover {
+    background: rgba(255,255,255,0.18);
+  }
+  .gallery-lightbox-close { top: 18px; right: 18px; }
+  .gallery-lightbox-prev  { left: 18px;  top: 50%; transform: translateY(-50%); }
+  .gallery-lightbox-next  { right: 18px; top: 50%; transform: translateY(-50%); }
+
+  @media (max-width: 600px) {
+    .gallery-lightbox-prev, .gallery-lightbox-next { display: none; }
+  }
+
+  /* ─────────────────────────── More news */
+  .more-news {
+    background: var(--navy-deep);
+    color: var(--paper);
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+    border-top: 4px solid var(--gold);
+  }
+  .more-news-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .more-news .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(240, 243, 247, 0.18);
+  }
+  .more-news .eyebrow {
+    color: var(--gold-bright);
+    margin: 0;
+  }
+  .more-news .eyebrow::before { background: var(--gold-bright); }
+  .more-news .sec-link {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--paper);
+    border-bottom: 1px solid var(--paper);
+    padding-bottom: 2px;
+    transition: color .18s, border-color .18s;
+  }
+  .more-news .sec-link:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+
+  .more-news-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0;
+  }
+  .more-news-grid li { border-right: 1px solid rgba(240, 243, 247, 0.12); }
+  .more-news-grid li:last-child { border-right: 0; }
+
+  .more-news-card {
+    display: flex;
+    flex-direction: column;
+    padding: 22px 22px;
+    color: var(--paper);
+    transition: background .18s ease;
+    height: 100%;
+  }
+  .more-news-card:hover { background: rgba(255, 255, 255, 0.05); }
+
+  .more-news-card time {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-bright);
+    margin-bottom: 12px;
+  }
+  .more-news-card h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 8px 0;
+    color: var(--paper);
+  }
+  .more-news-card p {
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(240, 243, 247, 0.78);
+    margin: 0 0 16px 0;
+  }
+  .more-news-read {
+    margin-top: auto;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-bright);
+  }
+
+  /* ─────────────────────────── Responsive */
+  @media (max-width: 720px) {
+    .article-hero h1 { font-size: clamp(28px, 7vw, 40px); }
+    .article-hero-image { transform: translateY(32px); margin-bottom: 32px; }
+    .more-news-grid { grid-template-columns: 1fr; }
+    .more-news-grid li { border-right: 0; border-bottom: 1px solid rgba(240, 243, 247, 0.12); }
+    .more-news-grid li:last-child { border-bottom: 0; }
+  }
+</style>

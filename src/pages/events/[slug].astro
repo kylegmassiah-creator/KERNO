@@ -1,0 +1,1572 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Attachments from '../../components/Attachments.astro';
+import { getCollection, render } from 'astro:content';
+import { marked } from 'marked';
+
+
+// ─────── Generate one page per event in the collection
+// Hidden events get no page generated, their slug 404s on the public site
+// even if someone has the direct URL. Un-hide in the CMS to bring it back.
+export async function getStaticPaths() {
+  const events = await getCollection('events');
+  return events
+    .filter(event => !event.data.hidden)
+    .map(event => ({
+      params: { slug: event.id },
+      props: { event },
+    }));
+}
+
+const { event } = Astro.props;
+const { Content } = await render(event);
+
+import { isEventUpcoming } from '../../lib/event-state';
+const now = new Date();
+// "Open for entry" - controls whether the Enter CTAs are shown.
+const isOpenForEntry = event.data.entryCloseDate >= now;
+// "Upcoming" - controls whether the event is in the future overall.
+// An event that's closed for entry but still hasn't happened yet is
+// still considered upcoming. Flips at the event's start time, or 8pm
+// on the event date if no start time is set.
+const isUpcoming = isEventUpcoming(event.data, now);
+// Filter out any results entries marked hidden in the CMS so they don't
+// appear on the public page (the entry stays in the markdown for later).
+const visibleResults = (event.data.results ?? []).filter(r => !r.hidden);
+const hasResults = visibleResults.length > 0;
+// True when a post-event report has been written in the CMS. Renders a
+// "Report" button next to the results files that links to a separate
+// page at /events/{slug}/report.
+const hasReport = typeof event.data.report === 'string' && event.data.report.trim().length > 0;
+
+// ─────── Pre-event briefing (blue info panel above the body)
+// Renders the "what to expect on the day" briefing block from the
+// preEventInfo field. Markdown so editors can write paragraphs, lists,
+// links etc. Only rendered when the field has content.
+const preEventInfoSource = (event.data.preEventInfo ?? '').trim();
+const hasPreEventInfo = preEventInfoSource.length > 0;
+const preEventInfoHtml = hasPreEventInfo ? marked.parse(preEventInfoSource) : '';
+
+// ─────── Sections that hide automatically once the event is past
+// Six standard event sections (registration, parking, entry, facilities,
+// dogs, contacts) each live in their own structured CMS field. They render
+// here as inline H2 sections at the bottom of the body, BUT only when the
+// event is still upcoming - once the event date has passed they vanish
+// from the public page automatically. Each section has a paired
+// `*KeepAfter` boolean that forces it to stay visible after the event for
+// the rare case where the committee wants to override that default.
+// Content stays in the CMS regardless so committee members can copy it
+// when planning the next year's edition.
+function slugifySection(label: string) {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+type AutoHideSection = { heading: string; html: string };
+const sectionDefs = [
+  { heading: 'Registration and start times', source: event.data.registrationDetails, keepAfter: event.data.registrationDetailsKeepAfter },
+  { heading: 'Directions and parking',       source: event.data.directionsAndParking,  keepAfter: event.data.directionsAndParkingKeepAfter },
+  { heading: 'Entry details',                source: event.data.entryDetails,          keepAfter: event.data.entryDetailsKeepAfter },
+  { heading: 'Facilities',                   source: event.data.facilities,            keepAfter: event.data.facilitiesKeepAfter },
+  // Dog restrictions and Contacts/officials sections removed in the schema
+  // cleanup - dog info now uses dogsAllowed + dogNotes, and officials use
+  // the four structured fields (planner / controller / organiser /
+  // seriesOrganiser) rendered in the sidebar.
+];
+const autoHideSections: AutoHideSection[] = sectionDefs
+  .map(s => ({ heading: s.heading, content: (s.source ?? '').trim(), keepAfter: !!s.keepAfter }))
+  .filter(s => s.content.length > 0)
+  .filter(s => isUpcoming || s.keepAfter)
+  .map(s => ({ heading: s.heading, html: marked.parse(s.content) as string }));
+
+// ─────── Disclaimer (yellow box at the bottom of the body)
+// Every event shows the club-wide BO insurance notice by default.
+// Editors can replace it on a per-event basis by ticking the
+// `disclaimerOverride` boolean in the CMS AND filling in `disclaimer`
+// with the custom markdown. To update the club-wide text, edit this
+// constant once; every event without an active override picks up the
+// new wording on the next build.
+const DEFAULT_DISCLAIMER = `**Pre-existing medical conditions:** [What you should do](/information/pre-existing-medical-conditions/).
+
+**Insurance:** From 1st January 2026, participants who are not members of British Orienteering will no longer be covered by British Orienteering's public liability insurance. By entering any event from 1st January 2026, you acknowledge that you are taking part at your own risk. For example, if you were to accidentally injure a member of the public or damage property during the event, you would not be covered. British Orienteering's public liability insurance used to cover non-members at events before this date.`;
+const customDisclaimer = (event.data.disclaimer ?? '').trim();
+const disclaimerSource =
+  event.data.disclaimerOverride && customDisclaimer
+    ? customDisclaimer
+    : DEFAULT_DISCLAIMER;
+marked.setOptions({ gfm: true, breaks: true });
+const disclaimerHtml = marked.parse(disclaimerSource);
+
+// Decap CMS sometimes saves image paths with a "public/" prefix (the
+// repo path) instead of the public URL ("/assets/uploads/..."). This
+// helper strips that prefix and guarantees a leading slash so the
+// browser can resolve the URL correctly.
+function normaliseImagePath(p) {
+  if (!p) return p;
+  let out = p.replace(/^public\//, '/');
+  if (!out.startsWith('/') && !out.startsWith('http')) out = '/' + out;
+  return out;
+}
+// Pass the event's expected media folder as the fallback for bare-filename
+// CMS saves. Decap sometimes drops the folder prefix when saving images
+// uploaded to the per-event media folder (`media_folder` in the events
+// collection config). Without this fallback, a bare `foo.jpg` resolves to
+// /assets/uploads/foo.jpg and 404s. With it, bare filenames resolve to the
+// correct per-event folder where the CMS actually saved the upload.
+const eventMediaFolder = `/results-archive/${event.data.date.getUTCFullYear()}/${event.id}`;
+const heroImageSrc = normaliseImagePath(event.data.heroImage, eventMediaFolder);
+
+// ─────── Date formatters
+// All pinned to Europe/London so dates render in UK time regardless of where
+// the build runs. Without this, YAML dates (parsed as UTC midnight) shift to
+// the previous day on Netlify's US-east build infra.
+const fmtFullDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const fmtDay = (d: Date) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'Europe/London' }).format(d);
+const fmtMonth = (d: Date) => new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'Europe/London' }).format(d);
+const fmtYear = (d: Date) => new Intl.DateTimeFormat('en-GB', { year: 'numeric', timeZone: 'Europe/London' }).format(d);
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Split an officials field like "Kay Hawke - kay.hawke@yahoo.co.uk" into a
+ *  { name, email } pair so the template can render the email on its own line
+ *  as a clickable mailto: link. If no email is present, returns { name, email:
+ *  null } and the field renders unchanged. Tolerates a couple of common
+ *  formats: "Name - email", "Name (email)", and a bare email. */
+function splitOfficial(value: string | undefined) {
+  if (!value) return { name: '', email: null as string | null };
+  const emailRx = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+  const m = value.match(emailRx);
+  if (!m) return { name: value.trim(), email: null };
+  // Strip the email and surrounding glue (-,(,) and stray whitespace)
+  const name = value.replace(emailRx, '').replace(/[-(),]/g, '').trim();
+  return { name, email: m[1] };
+}
+
+// ─────── Location helpers, prefers the CMS map-pin (Decap "map"
+// widget GeoJSON output) over the manual lat/lng object.
+import { resolveCoords } from '../../lib/coords';
+const coords = resolveCoords(event.data);
+
+// Google Maps API key for the embedded venue map below.
+// IMPORTANT: use the typeof guard pattern. Astro/Vite inlines
+// `import.meta.env.PUBLIC_*` at build time. If the env var isn't
+// defined the replacement can produce `const X = ;` which surfaces as
+// a misleading "must be initialized" error at unrelated line numbers.
+// The typeof check forces a string fallback so the build can't break
+// when the key isn't set (the map just falls back to a plain link).
+const _eventGoogleMapsKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+const EVENT_GOOGLE_MAPS_KEY =
+  typeof _eventGoogleMapsKey === 'string' ? _eventGoogleMapsKey : '';
+const mapsLink = coords
+  ? `https://www.google.com/maps/place/${coords.lat},${coords.lng}/@${coords.lat},${coords.lng},14z`
+  : null;
+const osmLink = coords
+  ? `https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lng}&zoom=14`
+  : null;
+const streetmapLink = coords
+  ? `https://www.streetmap.co.uk/loc/${coords.lat},${coords.lng}`
+  : null;
+const bingLink = coords
+  ? `https://www.bing.com/maps/?v=2&lvl=14&style=s&cp=${coords.lat}~${coords.lng}&q=${coords.lat},${coords.lng}`
+  : null;
+
+// ─────── File-type label / icon
+const fileTypeLabel = (t: string) => {
+  switch (t) {
+    case 'pdf': return 'PDF';
+    case 'xlsx': return 'Excel';
+    case 'csv': return 'CSV';
+    case 'html': default: return 'View online';
+  }
+};
+
+// ─────── Schema.org Event JSON-LD
+// Google reads this and surfaces the event in event-rich-result cards.
+// https://developers.google.com/search/docs/appearance/structured-data/event
+const siteUrl = Astro.site ?? new URL("https://cornwallorienteering.org.uk");
+const canonical = new URL(Astro.url.pathname, siteUrl).toString();
+
+// Combine event date with start time, if provided. Otherwise use date at 00:00.
+function combineDateAndTime(date: Date, displayTime?: string): string {
+  if (!displayTime) return date.toISOString();
+  // Parse "7:00pm" / "10:30am" into 24h and apply to the date
+  const m = displayTime.trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!m) return date.toISOString();
+  let hours = parseInt(m[1], 10);
+  const mins = m[2] ? parseInt(m[2], 10) : 0;
+  const meridiem = m[3];
+  if (meridiem === 'pm' && hours < 12) hours += 12;
+  if (meridiem === 'am' && hours === 12) hours = 0;
+  const d = new Date(date);
+  d.setHours(hours, mins, 0, 0);
+  return d.toISOString();
+}
+
+const startIso = combineDateAndTime(event.data.date, event.data.startTime);
+
+const eventJsonLd: Record<string, unknown> = {
+  "@context": "https://schema.org",
+  "@type": "SportsEvent",
+  name: event.data.title,
+  description: event.data.description ?? event.data.summary,
+  startDate: startIso,
+  eventStatus: event.data.cancelled
+    ? "https://schema.org/EventCancelled"
+    : "https://schema.org/EventScheduled",
+  eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+  url: canonical,
+  organizer: {
+    "@type": "SportsOrganization",
+    name: "Cornwall Orienteering Club",
+    url: siteUrl.toString(),
+  },
+  sport: "Orienteering",
+  location: {
+    "@type": "Place",
+    name: event.data.venue ?? event.data.location,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: event.data.location,
+      ...(event.data.postcode ? { postalCode: event.data.postcode } : {}),
+      addressRegion: "Cornwall",
+      addressCountry: "GB",
+    },
+    ...(coords ? {
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: coords.lat,
+        longitude: coords.lng,
+      }
+    } : {}),
+  },
+};
+
+if (event.data.entryFee && event.data.siEntriesUrl) {
+  eventJsonLd.offers = {
+    "@type": "Offer",
+    price: event.data.entryFee,
+    priceCurrency: "GBP",
+    availability: "https://schema.org/InStock",
+    url: event.data.siEntriesUrl,
+    validThrough: event.data.entryCloseDate.toISOString(),
+  };
+}
+---
+<Layout
+  title={`${event.data.title}, ${fmtMonth(event.data.date)} ${fmtYear(event.data.date)}, KERNO`}
+  description={event.data.description ?? event.data.summary}
+  ogType="article"
+  publishedTime={event.data.date.toISOString()}
+>
+
+<Fragment slot="head">
+  <script type="application/ld+json" set:html={JSON.stringify(eventJsonLd)}></script>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home",   item: siteUrl.toString() },
+      { "@type": "ListItem", position: 2, name: "Events", item: new URL("/events", siteUrl).toString() },
+      { "@type": "ListItem", position: 3, name: event.data.title, item: canonical },
+    ],
+  })}></script>
+</Fragment>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Optional hero photo banner
+       Only shown on UPCOMING events. Past events drop the photo so the
+       page reads as an archive/results record rather than promo for an
+       event that's already happened. -->
+  {isUpcoming && event.data.heroImage && (
+    <div class:list={['ev-hero-photo', event.data.heroFit === 'contain' && 'ev-hero-photo--contain']}>
+      <img src={heroImageSrc} alt={event.data.heroImageAlt ?? ""} loading="eager">
+    </div>
+  )}
+
+  <!-- ─────────────────────────── Event hero.
+       When a hero photo is set (and the event is upcoming), switch to
+       the dark-theme variant so the photo banner above flows into a
+       unified dark hero panel with white text underneath. Past events
+       and events without a photo stay on the light paper-2 background. -->
+  <section class:list={['ev-hero', isUpcoming && event.data.heroImage && 'ev-hero--with-photo']}>
+    <div class="ev-hero-wrap">
+      <a class="back-link" href="/events">← All events</a>
+
+      <div class="ev-hero-grid">
+        <div class="ev-hero-left">
+          <p class="eyebrow">
+            {event.data.format}
+            {event.data.location && <><span aria-hidden="true"> · </span>{event.data.location}</>}
+            <span aria-hidden="true"> · </span>{capitalize(event.data.level)} level
+          </p>
+          <h1>{event.data.title}</h1>
+          {event.data.cancelled && (
+            <p class="cancelled-banner">Cancelled</p>
+          )}
+          {event.data.description && <p class="ev-hero-lede">{event.data.description}</p>}
+
+          <dl class="ev-key-facts">
+            <div>
+              <dt>Date</dt>
+              <dd>{fmtFullDate(event.data.date)}</dd>
+            </div>
+            {/* Last start time is intentionally not displayed publicly. It's
+                only used internally to flip the event from "Upcoming" to
+                "Results" once that time passes. Visitors should rely on the
+                Registration / Starts info in the markdown body, which the
+                committee can word however they like (e.g. "Starts: 12:30 to
+                14:00"). */}
+            {event.data.entryFee && (
+              <div>
+                <dt>Entry</dt>
+                <dd>{event.data.entryFee}</dd>
+              </div>
+            )}
+            {event.data.capacity && (
+              <div>
+                <dt>Capacity</dt>
+                <dd>{event.data.capacity} entrants</dd>
+              </div>
+            )}
+            {event.data.dogsAllowed && (
+              <div>
+                <dt>Dogs</dt>
+                <dd>
+                  {event.data.dogsAllowed === 'yes' && 'Welcome'}
+                  {event.data.dogsAllowed === 'on-lead' && 'On lead only'}
+                  {event.data.dogsAllowed === 'no' && 'Not permitted'}
+                  {event.data.dogsAllowed === 'not-recommended' && 'Not recommended'}
+                </dd>
+              </div>
+            )}
+            {event.data.bofEventNumber && (
+              <div>
+                <dt>BOF event no.</dt>
+                <dd class="mono">
+                  {/^\d+$/.test(String(event.data.bofEventNumber)) ? (
+                    <a
+                      href={`https://www.britishorienteering.org.uk/event?event=${event.data.bofEventNumber}&bpage=0`}
+                      rel="noopener"
+                      target="_blank"
+                      class="bof-link"
+                    >{event.data.bofEventNumber} ↗</a>
+                  ) : (
+                    <span>{event.data.bofEventNumber}</span>
+                  )}
+                </dd>
+              </div>
+            )}
+            {event.data.venue && (
+              <div class="full">
+                <dt>Venue</dt>
+                <dd>{event.data.venue}{event.data.postcode && <>, <span class="mono">{event.data.postcode}</span></>}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <aside class="ev-hero-right">
+          {isOpenForEntry && event.data.siEntriesUrl && !event.data.cancelled && (
+            <div class="cta-card primary">
+              <p class="cta-label">Online entry</p>
+              <p class="cta-detail">Open until {fmtFullDate(event.data.entryCloseDate)}</p>
+              <a class="btn btn-primary btn-full" href={event.data.siEntriesUrl} rel="noopener">
+                Enter via SI Entries <span class="arrow">→</span>
+              </a>
+            </div>
+          )}
+
+          {isOpenForEntry && !event.data.siEntriesUrl && !event.data.cancelled && (
+            <div class="cta-card neutral">
+              <p class="cta-label">Online entry</p>
+              <p class="cta-detail">Entry details to follow</p>
+            </div>
+          )}
+
+          {!isOpenForEntry && isUpcoming && !event.data.cancelled && (
+            <div class="cta-card neutral">
+              <p class="cta-label">Online entry</p>
+              <p class="cta-detail">Entries closed</p>
+            </div>
+          )}
+
+          {!isUpcoming && !hasResults && (
+            <div class="cta-card neutral">
+              <p class="cta-label">Event finished</p>
+              <p class="cta-detail">Results to follow</p>
+            </div>
+          )}
+
+          {event.data.routeGadgetUrl && (
+            <a class="link-row" href={event.data.routeGadgetUrl} rel="noopener">
+              <span>View on RouteGadget</span>
+              <span aria-hidden="true">→</span>
+            </a>
+          )}
+
+          {/* Print button is hidden on past events - a results-only page
+              prints to barely a page and the useful bits (parking, entry,
+              registration) are gone from the public view by then. */}
+          {isUpcoming && (
+            <button class="link-row print-btn" type="button" onclick="window.print()">
+              <span>Print this page</span>
+              <span aria-hidden="true">⎙</span>
+            </button>
+          )}
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Results files (shown FIRST so visitors landing
+       the morning after an event get straight to their splits, no scrolling).
+       The Report button (if present) sits alongside the results files so it's
+       discoverable in the same place. -->
+  {(hasResults || hasReport) && (
+    <section id="results" class="ev-results">
+      <div class="ev-results-wrap">
+        <h2>Results{hasReport && !hasResults ? ' & report' : ''}</h2>
+        <ul class="results-list">
+          {visibleResults.map(file => (
+            <li>
+              <a href={file.url} rel="noopener">
+                <span class="result-icon" data-type={file.type}>{fileTypeLabel(file.type)}</span>
+                <span class="result-label">{file.label}</span>
+                <span class="result-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+          {hasReport && (
+            <li>
+              <a href={`/events/${event.id}/report`}>
+                <span class="result-icon" data-type="report">Report</span>
+                <span class="result-label">Event report</span>
+                <span class="result-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          )}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Pre-event briefing
+       Sits between the Results section and the main body, matching
+       where the old KERNO site put its "what to expect on the day"
+       briefing. Skipped entirely when preEventInfo is empty. -->
+  {hasPreEventInfo && (
+    <section class="ev-pre-info" aria-label="Pre-event briefing">
+      <div class="ev-pre-info-wrap">
+        <p class="ev-pre-info-label">Pre-event info</p>
+        <div class="ev-pre-info-body" set:html={preEventInfoHtml}></div>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Body content -->
+  <section class="ev-body">
+    <div class="ev-body-wrap">
+      <article class="ev-prose">
+        <Content />
+        {/* Inline render of the six auto-hide sections. Each falls off the
+            page automatically once the event is past (unless its
+            *KeepAfter override is ticked). The content lives in dedicated
+            CMS fields rather than the long-form body so the cut is clean
+            and so committee members get a clearly-labelled box per section
+            when editing. */}
+        {autoHideSections.map(section => (
+          <section class="ev-section" aria-label={section.heading}>
+            <h2>{section.heading}</h2>
+            <div set:html={section.html} />
+          </section>
+        ))}
+        {event.data.attachments && event.data.attachments.length > 0 && (
+          <Attachments attachments={event.data.attachments} />
+        )}
+        {event.data.gallery && event.data.gallery.length > 0 && (
+          <section class="ev-gallery" aria-label="Event photos">
+            <h2>Photos from the event</h2>
+            <div class="ev-gallery-carousel" data-count={event.data.gallery.length}>
+              <button type="button" class="ev-gallery-nav ev-gallery-nav-prev" aria-label="Previous photos">‹</button>
+              <div class="ev-gallery-viewport">
+                <ul class="ev-gallery-track">
+                  {event.data.gallery.map(image => (
+                    <li class="ev-gallery-slide">
+                      <a href={image.src} class="ev-gallery-link" data-caption={image.caption ?? ""}>
+                        <img src={image.src} alt={image.alt ?? ""} loading="lazy">
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button type="button" class="ev-gallery-nav ev-gallery-nav-next" aria-label="Next photos">›</button>
+            </div>
+          </section>
+        )}
+        <!-- Disclaimer (yellow box). Lives at the bottom of the body
+             article so it sits visually below the body content on every
+             viewport - on mobile it falls between the body text and the
+             map (which is in the aside, stacked below). -->
+        <div class="ev-disclaimer-box" set:html={disclaimerHtml}></div>
+      </article>
+
+      <aside class="ev-meta">
+        <div class="meta-block">
+          <p class="meta-label">Location</p>
+          <p class="meta-place">{event.data.location}</p>
+          {coords && (
+            <div
+              id="event-venue-map"
+              class="event-venue-map"
+              data-lat={coords.lat}
+              data-lng={coords.lng}
+              data-title={event.data.venue ?? event.data.location}
+              aria-label={`Map of ${event.data.venue ?? event.data.location}`}
+            ></div>
+          )}
+          {coords && (
+            <p class="meta-coord mono">{coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}</p>
+          )}
+          {event.data.gridRef && (
+            <p class="meta-postcode mono">OS {event.data.gridRef}</p>
+          )}
+          {event.data.postcode && (
+            <p class="meta-postcode mono">{event.data.postcode}</p>
+          )}
+          {event.data.what3words && (
+            <p class="meta-postcode w3w-line">
+              <span class="w3w-label">what3words</span>
+              <a
+                class="w3w"
+                href={`https://what3words.com/${event.data.what3words}`}
+                rel="noopener"
+                target="_blank"
+              >
+                ///<span class="mono">{event.data.what3words}</span>
+              </a>
+            </p>
+          )}
+          {coords && (
+            <ul class="map-links">
+              <li><a href={mapsLink} rel="noopener" target="_blank">Google Maps →</a></li>
+              <li><a href={osmLink} rel="noopener" target="_blank">OpenStreetMap →</a></li>
+              <li><a href={streetmapLink} rel="noopener" target="_blank">Streetmap (OS 50k) →</a></li>
+              <li><a href={bingLink} rel="noopener" target="_blank">Bing Maps (OS) →</a></li>
+            </ul>
+          )}
+          {!coords && (
+            <p class="meta-note">Coordinates and map links will appear here once the committee adds them.</p>
+          )}
+        </div>
+
+        {(event.data.planner || event.data.controller || event.data.organiser || event.data.seriesOrganiser) && (
+          <div class="meta-block">
+            <p class="meta-label">Officials</p>
+            <dl class="officials">
+              {event.data.planner && (() => {
+                const { name, email } = splitOfficial(event.data.planner);
+                return (
+                  <>
+                    <dt>Planner</dt>
+                    <dd>
+                      {name}
+                      {email && <><br /><a href={`mailto:${email}`}>{email}</a></>}
+                    </dd>
+                  </>
+                );
+              })()}
+              {event.data.controller && (() => {
+                const { name, email } = splitOfficial(event.data.controller);
+                return (
+                  <>
+                    <dt>Controller</dt>
+                    <dd>
+                      {name}
+                      {email && <><br /><a href={`mailto:${email}`}>{email}</a></>}
+                    </dd>
+                  </>
+                );
+              })()}
+              {event.data.organiser && (() => {
+                const { name, email } = splitOfficial(event.data.organiser);
+                return (
+                  <>
+                    <dt>Organiser</dt>
+                    <dd>
+                      {name}
+                      {email && <><br /><a href={`mailto:${email}`}>{email}</a></>}
+                    </dd>
+                  </>
+                );
+              })()}
+              {event.data.seriesOrganiser && (() => {
+                const { name, email } = splitOfficial(event.data.seriesOrganiser);
+                return (
+                  <>
+                    <dt>Series organiser</dt>
+                    <dd>
+                      {name}
+                      {email && <><br /><a href={`mailto:${email}`}>{email}</a></>}
+                    </dd>
+                  </>
+                );
+              })()}
+            </dl>
+          </div>
+        )}
+
+        {event.data.dogNotes && (
+          <div class="meta-block">
+            <p class="meta-label">Dogs</p>
+            <p class="meta-note">{event.data.dogNotes}</p>
+          </div>
+        )}
+
+        <div class="meta-block">
+          <p class="meta-label">Event level</p>
+          <p>
+            <span class={`level level-${event.data.level}`}>{capitalize(event.data.level)}</span>
+          </p>
+          <p class="meta-note">
+            {event.data.level === 'local' && 'Low-key, ideal for newcomers.'}
+            {event.data.level === 'regional' && 'Attracts orienteers from across the North West.'}
+            {event.data.level === 'national' && 'High-quality competition drawing competitors from across the UK.'}
+            {event.data.level === 'major' && 'A major event such as a British Championships or JK round.'}
+          </p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Lightbox overlay (for gallery photos) -->
+  {event.data.gallery && event.data.gallery.length > 0 && (
+    <div id="ev-gallery-lightbox" class="ev-gallery-lightbox" hidden>
+      <button type="button" class="ev-gallery-lightbox-close" aria-label="Close">×</button>
+      <button type="button" class="ev-gallery-lightbox-prev" aria-label="Previous">‹</button>
+      <img class="ev-gallery-lightbox-img" src="" alt="">
+      <p class="ev-gallery-lightbox-caption"></p>
+      <button type="button" class="ev-gallery-lightbox-next" aria-label="Next">›</button>
+    </div>
+  )}
+
+</main>
+
+{coords && EVENT_GOOGLE_MAPS_KEY && (
+  <Fragment>
+    <script define:vars={{ key: EVENT_GOOGLE_MAPS_KEY }} is:inline>
+      window.KERNO_EVENT_GOOGLE_MAPS_KEY = key || '';
+    </script>
+    <script is:inline>
+      window.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('event-venue-map');
+        if (!el) return;
+        var lat = parseFloat(el.dataset.lat);
+        var lng = parseFloat(el.dataset.lng);
+        var title = el.dataset.title || 'Event venue';
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+        var apiKey = window.KERNO_EVENT_GOOGLE_MAPS_KEY;
+        if (!apiKey) return;
+
+        function init() {
+          var map = new window.google.maps.Map(el, {
+            center: { lat: lat, lng: lng },
+            zoom: 14,
+            mapTypeId: 'roadmap',
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            gestureHandling: 'cooperative',
+          });
+          var marker = new window.google.maps.Marker({
+            position: { lat: lat, lng: lng },
+            map: map,
+            title: title,
+          });
+          var info = new window.google.maps.InfoWindow({
+            content: '<strong>' + title.replace(/</g, '&lt;') + '</strong>',
+          });
+          info.open({ anchor: marker, map: map });
+          marker.addListener('click', function () { info.open({ anchor: marker, map: map }); });
+        }
+
+        if (window.google && window.google.maps) {
+          init();
+          return;
+        }
+        var cb = '__pfoEventMapReady';
+        window[cb] = init;
+        var s = document.createElement('script');
+        s.src = 'https://maps.googleapis.com/maps/api/js?key=' +
+                encodeURIComponent(apiKey) +
+                '&callback=' + cb + '&loading=async&v=weekly';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+      });
+    </script>
+  </Fragment>
+)}
+
+<script>
+  // Paginated carousel + lightbox for the event photo gallery.
+  (function () {
+    const carousel = document.querySelector('.ev-gallery-carousel');
+    if (!carousel) return;
+    const track = carousel.querySelector('.ev-gallery-track');
+    const slides = track.querySelectorAll('.ev-gallery-slide');
+    const total = slides.length;
+    if (total === 0) return;
+    const prev = carousel.querySelector('.ev-gallery-nav-prev');
+    const next = carousel.querySelector('.ev-gallery-nav-next');
+    let pos = 0;
+
+    // ─── Lightbox setup ──────────────────────────────────────────────
+    const links = Array.from(carousel.querySelectorAll('.ev-gallery-link'));
+    const lb = document.getElementById('ev-gallery-lightbox');
+    if (lb) {
+      const lbImg   = lb.querySelector('.ev-gallery-lightbox-img');
+      const lbCap   = lb.querySelector('.ev-gallery-lightbox-caption');
+      const lbClose = lb.querySelector('.ev-gallery-lightbox-close');
+      const lbPrev  = lb.querySelector('.ev-gallery-lightbox-prev');
+      const lbNext  = lb.querySelector('.ev-gallery-lightbox-next');
+      let lbIdx = 0;
+      function lbShow(i) {
+        lbIdx = (i + links.length) % links.length;
+        const a = links[lbIdx];
+        lbImg.src = a.getAttribute('href');
+        lbImg.alt = a.querySelector('img').alt || '';
+        const c = a.getAttribute('data-caption') || '';
+        lbCap.textContent = c;
+        lbCap.style.display = c ? 'block' : 'none';
+        lb.hidden = false;
+        document.body.style.overflow = 'hidden';
+      }
+      function lbHide() {
+        lb.hidden = true;
+        document.body.style.overflow = '';
+      }
+      links.forEach((a, i) => {
+        a.addEventListener('click', (e) => { e.preventDefault(); lbShow(i); });
+      });
+      lbClose.addEventListener('click', lbHide);
+      lbPrev.addEventListener('click', () => lbShow(lbIdx - 1));
+      lbNext.addEventListener('click', () => lbShow(lbIdx + 1));
+      lb.addEventListener('click', (e) => { if (e.target === lb) lbHide(); });
+      document.addEventListener('keydown', (e) => {
+        if (lb.hidden) return;
+        if (e.key === 'Escape') lbHide();
+        else if (e.key === 'ArrowLeft')  lbShow(lbIdx - 1);
+        else if (e.key === 'ArrowRight') lbShow(lbIdx + 1);
+      });
+    }
+    // Mobile shows 1 photo, desktop shows 3. Limit pos to never overshoot
+    // into trailing empty slots when the photo count isn't a multiple of 3.
+    function visibleCount() {
+      return window.matchMedia('(max-width: 720px)').matches ? 1 : 3;
+    }
+    function maxPos() {
+      return Math.max(0, total - visibleCount());
+    }
+    function update() {
+      const slot = slides[0].getBoundingClientRect().width + 14;
+      track.style.transform = `translateX(${-pos * slot}px)`;
+    }
+    function step(dir) {
+      const m = maxPos();
+      pos += dir;
+      if (pos > m) pos = 0;
+      if (pos < 0) pos = m;
+      update();
+    }
+    if (prev) prev.addEventListener('click', () => step(-1));
+    if (next) next.addEventListener('click', () => step(1));
+    window.addEventListener('resize', () => {
+      // Recompute slot width and clamp pos if visibleCount changed
+      if (pos > maxPos()) pos = maxPos();
+      update();
+    });
+
+    // Swipe support on touch devices
+    let touchStart = 0;
+    track.addEventListener('touchstart', (e) => { touchStart = e.touches[0].clientX; }, { passive: true });
+    track.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].clientX - touchStart;
+      if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+    });
+  })();
+</script>
+
+</Layout>
+
+<style>
+  .mono { font-family: var(--ff-mono); }
+
+  /* ─────────────────────────── Optional hero photo banner */
+  .ev-hero-photo {
+    width: 100%;
+    background: var(--navy-deep);
+    overflow: hidden;
+  }
+  .ev-hero-photo img {
+    display: block;
+    width: 100%;
+    max-height: clamp(220px, 38vw, 460px);
+    object-fit: cover;
+  }
+  /* `heroFit: contain` in the event frontmatter switches the photo to
+     fully-visible (no crop). Used for non-photographic heroes like
+     logos. Background switches to white (vs. the default navy-deep)
+     so the logo image's white surround blends seamlessly across the
+     full banner width - i.e. the white extends from edge to edge
+     instead of having navy letterbox bars on either side. */
+  .ev-hero-photo--contain {
+    background: #ffffff;
+  }
+  .ev-hero-photo--contain img {
+    object-fit: contain;
+    max-height: clamp(220px, 38vw, 460px);
+  }
+
+  /* ─────────────────────────── Hero */
+  .ev-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(28px, 4vw, 48px) var(--pad-x) clamp(40px, 5vw, 64px);
+  }
+  /* When a hero photo is set, the photo banner above flows into a
+     dark hero panel with white text so the two read as a single hero. */
+  .ev-hero--with-photo {
+    background: var(--navy-deep);
+    color: var(--paper);
+    border-bottom-color: var(--navy);
+  }
+  .ev-hero--with-photo .back-link { color: var(--paper); opacity: 0.85; }
+  .ev-hero--with-photo .back-link:hover { color: var(--gold); opacity: 1; }
+  .ev-hero--with-photo .ev-hero-left .eyebrow { color: var(--gold-bright); }
+  .ev-hero--with-photo .ev-hero-left .eyebrow span { color: var(--paper); opacity: 0.6; }
+  .ev-hero--with-photo .ev-hero-left h1 { color: var(--paper); }
+  .ev-hero--with-photo .ev-hero-lede { color: var(--paper); opacity: 0.9; }
+  .ev-hero--with-photo .ev-key-facts {
+    border-top-color: rgba(244, 237, 224, 0.25);
+  }
+  .ev-hero--with-photo .ev-key-facts dt { color: var(--gold-bright); }
+  .ev-hero--with-photo .ev-key-facts dd { color: var(--paper); }
+  .ev-hero--with-photo .ev-key-facts a { color: var(--paper); }
+  .ev-hero--with-photo .cancelled-banner {
+    background: var(--plum);
+    color: var(--paper);
+  }
+  .ev-hero-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  .back-link {
+    display: inline-block;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 28px;
+    transition: color .18s ease;
+  }
+  .back-link:hover { color: var(--plum); }
+
+  .ev-hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: clamp(28px, 4vw, 56px);
+    align-items: start;
+  }
+
+  .ev-hero-left .eyebrow {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin: 0 0 18px 0;
+  }
+  .ev-hero-left .eyebrow span { color: var(--ink-mute); margin: 0 4px; }
+
+  .ev-hero-left h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 16px 0;
+    color: var(--ink);
+  }
+
+  .cancelled-banner {
+    display: inline-block;
+    background: var(--plum);
+    color: var(--paper);
+    padding: 6px 14px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin: 0 0 16px 0;
+  }
+
+  .ev-hero-lede {
+    font-size: clamp(15px, 1.2vw, 17px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0 0 28px 0;
+  }
+
+  /* ─────────────────────────── Key facts */
+  .ev-key-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 18px 28px;
+    margin: 24px 0 0 0;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+  }
+  .ev-key-facts .full {
+    grid-column: 1 / -1;
+  }
+  .ev-key-facts dt {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 4px 0;
+  }
+  .ev-key-facts dd {
+    font-size: 15px;
+    color: var(--ink);
+    margin: 0;
+    line-height: 1.35;
+  }
+  .bof-link {
+    color: var(--navy);
+    border-bottom: 1px solid var(--rule-2);
+    padding-bottom: 1px;
+    transition: color .18s, border-color .18s;
+  }
+  .bof-link:hover { color: var(--plum); border-color: var(--plum); }
+
+  /* ─────────────────────────── CTA card on the right */
+  .ev-hero-right { display: flex; flex-direction: column; gap: 14px; }
+  .cta-card {
+    background: var(--paper);
+    padding: 22px 22px 20px;
+    border-top: 4px solid var(--gold);
+    box-shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.45);
+  }
+  .cta-card.neutral {
+    border-top-color: var(--rule-2);
+    box-shadow: none;
+  }
+  .cta-card .cta-label {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin: 0 0 6px 0;
+  }
+  .cta-card.neutral .cta-label { color: var(--ink-mute); }
+  .cta-card .cta-detail {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 16px 0;
+  }
+  .cta-card .btn-primary {
+    background: var(--gold);
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: inset 0 -2px 0 rgba(12, 31, 58, 0.12);
+  }
+  .cta-card .btn-primary:hover {
+    background: var(--gold-dark);
+    color: var(--paper);
+    box-shadow: none;
+  }
+
+  .link-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background .18s ease, color .18s ease;
+  }
+  .link-row:hover { background: var(--ink); color: var(--paper); }
+
+  /* ─────────────────────────── Body */
+  .ev-body {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(40px, 5vw, 72px) var(--pad-x);
+  }
+  .ev-body-wrap {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: clamp(32px, 4vw, 56px);
+    align-items: start;
+  }
+
+  /* Article prose styles */
+  .ev-prose :global(h1) { display: none; }
+  .ev-prose :global(h2) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2vw, 28px);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--navy);
+    margin: 32px 0 14px 0;
+  }
+  .ev-prose :global(h2:first-child) { margin-top: 0; }
+  .ev-prose :global(h3) {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    color: var(--ink);
+    margin: 24px 0 10px 0;
+  }
+  .ev-prose :global(p) {
+    font-size: 16px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    margin: 0 0 16px 0;
+    max-width: 65ch;
+  }
+  .ev-prose :global(ul), .ev-prose :global(ol) {
+    margin: 0 0 16px 1.4em;
+    padding: 0;
+  }
+  /* Images embedded in the markdown body. Without an explicit cap, the
+     browser renders them at their intrinsic pixel size, which is usually
+     far wider than the prose column. Capping to 100% of the container with
+     auto height keeps the aspect ratio and ensures the image scales down
+     on smaller screens. The max-width of 480px stops a single logo or
+     poster from dominating the page even when the source file is huge. */
+  .ev-prose :global(img) {
+    display: block;
+    max-width: min(100%, 480px);
+    height: auto;
+    margin: 18px 0;
+  }
+  .ev-prose :global(li) {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .ev-prose :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 2px;
+  }
+  .ev-prose :global(a:hover) { color: var(--plum); }
+
+  /* Aside / meta blocks */
+  .ev-meta { display: flex; flex-direction: column; gap: 24px; position: sticky; top: 24px; }
+  .meta-block {
+    padding: 18px 18px;
+    background: var(--paper-2);
+    border-left: 3px solid var(--plum);
+  }
+  .meta-block .meta-label {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 0 0 8px 0;
+  }
+  .meta-coord, .meta-postcode {
+    font-size: 14px;
+    color: var(--ink);
+    margin: 0 0 4px 0;
+  }
+  .meta-place {
+    font-size: 14px;
+    color: var(--ink);
+    margin: 0 0 6px 0;
+    font-weight: 500;
+  }
+
+  /* ─── Pre-event briefing (blue info panel) ─────────────────────
+     Restores the "what to expect on the day" section that lived on
+     the old KERNO site between Results and the location block. Blue so
+     it visually pairs with - but stands apart from - the yellow OS-
+     licensing disclaimer further down. */
+  .ev-pre-info {
+    background: var(--paper);
+    padding: clamp(28px, 4vw, 48px) var(--pad-x);
+  }
+  .ev-pre-info-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    background: #e8f0f8;
+    border: 1px solid #b9cee0;
+    border-left: 4px solid var(--navy);
+    border-radius: 4px;
+    padding: clamp(16px, 2vw, 24px) clamp(18px, 2.5vw, 28px);
+  }
+  .ev-pre-info-label {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin: 0 0 12px;
+  }
+  .ev-pre-info-body :global(p) {
+    margin: 0 0 0.7em;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink);
+    max-width: none;
+  }
+  .ev-pre-info-body :global(p:last-child) { margin-bottom: 0; }
+  .ev-pre-info-body :global(ul),
+  .ev-pre-info-body :global(ol) {
+    margin: 0.4em 0 0.7em 1.2em;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  .ev-pre-info-body :global(li) { margin-bottom: 0.3em; }
+  .ev-pre-info-body :global(strong) { color: var(--ink); }
+  .ev-pre-info-body :global(em) { font-style: italic; }
+  .ev-pre-info-body :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* ─── Disclaimer (yellow box) ──────────────────────────────────
+     Sits at the bottom of the body article so it falls visually
+     between the body content and the map (which is in the sidebar,
+     stacked below on mobile, beside on desktop). Renders the
+     event-specific disclaimer markdown, or the club-wide default
+     when the event has no override. */
+  .ev-disclaimer-box {
+    margin-top: 32px;
+    background: #fff4c2;
+    border: 1px solid #e8c952;
+    border-left: 4px solid #d8a800;
+    border-radius: 4px;
+    padding: clamp(16px, 2vw, 22px) clamp(18px, 2.5vw, 28px);
+    color: var(--ink);
+  }
+  .ev-disclaimer-box :global(p) {
+    margin: 0 0 0.7em;
+    font-size: 15px;
+    line-height: 1.55;
+    /* Override the prose paragraph cap (65ch) so the disclaimer text
+       fills the yellow box edge-to-edge instead of wrapping early. */
+    max-width: none;
+    color: var(--ink);
+  }
+  .ev-disclaimer-box :global(p:last-child) { margin-bottom: 0; }
+  .ev-disclaimer-box :global(strong) { color: var(--ink); }
+  .ev-disclaimer-box :global(a) {
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .ev-disclaimer-box :global(ul),
+  .ev-disclaimer-box :global(ol) {
+    margin: 0.5em 0 0.5em 1.2em;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .ev-disclaimer-box :global(li) { margin-bottom: 0.3em; }
+
+  /* Embedded venue map, Google Maps. Sits at the top of the Location
+     block. Compact ~180px tall so it gives a clear sense of place
+     without dominating the sidebar. gestureHandling: 'cooperative' on
+     the JS side keeps scroll-zoom polite - visitors have to Ctrl/Cmd-
+     scroll, so the page is scrollable past it. */
+  .event-venue-map {
+    width: 100%;
+    height: 180px;
+    margin: 8px 0 12px 0;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+  }
+  @media print {
+    .event-venue-map { display: none; }
+  }
+  .meta-note {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+    margin: 8px 0 0 0;
+  }
+  .map-links {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .map-links a {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 1px;
+  }
+  .map-links a:hover { color: var(--plum); border-color: var(--plum); }
+
+  /* what3words link in the location meta block */
+  .w3w-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .w3w-label {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .w3w {
+    font-size: 13px;
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid var(--rule-2);
+    padding-bottom: 1px;
+    transition: color .18s ease, border-color .18s ease;
+  }
+  .w3w:hover { color: var(--plum); border-color: var(--plum); }
+
+  /* Officials block, small dl in the meta sidebar */
+  .officials {
+    margin: 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 12px;
+  }
+  .officials dt {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    align-self: baseline;
+  }
+  .officials dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+
+  /* ─────────────────────────── Results */
+  .ev-results {
+    background: var(--navy-deep);
+    color: var(--paper);
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+    border-top: 4px solid var(--gold);
+  }
+  .ev-results-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .ev-results h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1;
+    color: var(--paper);
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    margin: 0 0 24px 0;
+  }
+  .results-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .results-list a {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--paper);
+    transition: background .18s ease;
+  }
+  .results-list a:hover { background: var(--gold); color: var(--ink); }
+  .result-icon {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .results-list a:hover .result-icon { background: var(--ink); color: var(--gold); }
+  .result-label { font-size: 15px; font-weight: 500; }
+  .result-arrow { font-family: var(--ff-mono); font-size: 16px; }
+
+  /* ─────────────────────────── Responsive */
+  @media (max-width: 880px) {
+    .ev-hero-grid { grid-template-columns: 1fr; }
+    .ev-hero-right { order: -1; }
+    .ev-body-wrap { grid-template-columns: 1fr; }
+    .ev-meta { position: static; }
+  }
+
+  /* ─────────────────────────── Print stylesheet
+     When the user prints an event page, strip the chrome (header, footer,
+     dark nav, social strip), drop background colours, force the content
+     into a single column, and stack the meta sidebar after the body so the
+     printout reads top-to-bottom like a one-page event briefing. */
+  @media print {
+    :global(.topbar),
+    :global(.footer),
+    :global(.skip),
+    :global(.announcement),
+    :global(.contour-divider),
+    :global(.social-strip),
+    .back-link,
+    .ev-hero-right,
+    .arrow,
+    .arrow-mono { display: none !important; }
+
+    :global(body) {
+      background: white !important;
+      color: black !important;
+      font-size: 11pt;
+    }
+    :global(a) { color: black !important; text-decoration: none !important; }
+    :global(a[href^="http"]:after) {
+      content: " (" attr(href) ")";
+      font-size: 9pt;
+      color: #444;
+      word-wrap: break-word;
+    }
+    .ev-hero,
+    .ev-body,
+    .ev-results {
+      background: white !important;
+      color: black !important;
+      padding: 0 !important;
+      border: 0 !important;
+    }
+    .ev-hero { margin-bottom: 12pt; }
+    .ev-hero-grid { grid-template-columns: 1fr !important; gap: 12pt !important; }
+    .ev-hero-left h1 {
+      font-size: 22pt !important;
+      color: black !important;
+      margin: 0 0 6pt 0 !important;
+    }
+    .ev-key-facts {
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 8pt 18pt !important;
+      padding-top: 8pt !important;
+      border-top: 1px solid #999 !important;
+    }
+    .ev-body-wrap { grid-template-columns: 1fr !important; gap: 12pt !important; }
+    .ev-meta { display: block !important; }
+    .meta-block {
+      background: white !important;
+      border-left: 2px solid #333 !important;
+      padding: 6pt 10pt !important;
+      page-break-inside: avoid;
+    }
+    .ev-prose :global(h2),
+    .ev-prose :global(h3) { color: black !important; page-break-after: avoid; }
+    .ev-prose :global(p),
+    .ev-prose :global(li) {
+      color: black !important;
+      font-size: 11pt !important;
+      line-height: 1.4 !important;
+    }
+    .ev-prose :global(table) {
+      border-collapse: collapse;
+      width: 100%;
+      page-break-inside: avoid;
+    }
+    .ev-prose :global(th), .ev-prose :global(td) {
+      border: 1px solid #999;
+      padding: 4pt 6pt;
+      font-size: 10pt;
+    }
+    .results-list a {
+      background: white !important;
+      color: black !important;
+      border: 1px solid #ccc;
+      page-break-inside: avoid;
+    }
+    .ev-results h2 { color: black !important; }
+  }
+
+  /* ─────────── Post-event photo gallery ─────────── */
+  .ev-gallery {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+  }
+  .ev-gallery h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 22px;
+    line-height: 1.15;
+    color: var(--navy);
+    margin: 0 0 18px 0;
+    /* Match the gold tick used elsewhere in the page */
+    border-left: 4px solid var(--gold);
+    padding-left: 12px;
+  }
+  /* ── Paginated gallery carousel: 3 photos on desktop, 1 on mobile,
+     prev/next buttons step through and wrap around. */
+  .ev-gallery-carousel {
+    position: relative;
+    padding: 0 56px;
+  }
+  .ev-gallery-viewport { overflow: hidden; }
+  .ev-gallery-track {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 14px;
+    transition: transform .4s cubic-bezier(.2,.6,.2,1);
+  }
+  .ev-gallery-slide {
+    flex: 0 0 calc((100% - 28px) / 3);
+    min-width: 0;
+  }
+  .ev-gallery-slide a {
+    display: block;
+    overflow: hidden;
+    background: var(--paper-2);
+    aspect-ratio: 4 / 3;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .ev-gallery-slide a:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px -16px rgba(0, 0, 0, 0.35);
+  }
+  .ev-gallery-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Prev / Next nav buttons - visible on all devices */
+  .ev-gallery-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: var(--paper);
+    border: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    transition: background .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ev-gallery-nav:hover { background: var(--navy); }
+  .ev-gallery-nav-prev { left: 4px; }
+  .ev-gallery-nav-next { right: 4px; }
+
+  @media (max-width: 720px) {
+    .ev-gallery-carousel { padding: 0 44px; }
+    .ev-gallery-slide { flex: 0 0 100%; }
+    .ev-gallery-slide a { aspect-ratio: 16 / 11; }
+    .ev-gallery-nav { width: 36px; height: 36px; font-size: 22px; }
+    .ev-gallery-nav-prev { left: 2px; }
+    .ev-gallery-nav-next { right: 2px; }
+  }
+
+  /* Make the gallery slide links look enlargeable */
+  .ev-gallery-link { cursor: zoom-in; }
+
+  /* ── Lightbox overlay (mirrors the news lightbox) */
+  .ev-gallery-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 22, 35, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 1000;
+    padding: 24px;
+  }
+  .ev-gallery-lightbox[hidden] { display: none; }
+  .ev-gallery-lightbox-img {
+    max-width: min(96vw, 1400px);
+    max-height: 82vh;
+    object-fit: contain;
+    display: block;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+  }
+  .ev-gallery-lightbox-caption {
+    color: var(--paper);
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: center;
+    margin: 16px 0 0 0;
+    max-width: 60ch;
+  }
+  .ev-gallery-lightbox-close,
+  .ev-gallery-lightbox-prev,
+  .ev-gallery-lightbox-next {
+    position: absolute;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: var(--paper);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease;
+  }
+  .ev-gallery-lightbox-close:hover,
+  .ev-gallery-lightbox-prev:hover,
+  .ev-gallery-lightbox-next:hover {
+    background: rgba(255,255,255,0.18);
+  }
+  .ev-gallery-lightbox-close { top: 18px; right: 18px; }
+  .ev-gallery-lightbox-prev  { left: 18px;  top: 50%; transform: translateY(-50%); }
+  .ev-gallery-lightbox-next  { right: 18px; top: 50%; transform: translateY(-50%); }
+  @media (max-width: 600px) {
+    .ev-gallery-lightbox-prev, .ev-gallery-lightbox-next { display: none; }
+  }
+</style>

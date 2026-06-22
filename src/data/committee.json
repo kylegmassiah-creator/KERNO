@@ -1,0 +1,102 @@
+{
+  "_comment": "Cornwall Orienteering Club (KERNO) committee. Leave photo blank to show initials. Add role emails when available.",
+  "members": [
+    {
+      "name": "Graham Pring",
+      "roles": [
+        "Chair"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Chris Moncaster",
+      "roles": [
+        "Vice Chair"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Roger Hargreaves",
+      "roles": [
+        "Secretary"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Annabel Pring",
+      "roles": [
+        "Treasurer"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Steve Beech",
+      "roles": [
+        "Membership Secretary"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Pauline Olds",
+      "roles": [
+        "Welfare Officer"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Scott Collier",
+      "roles": [
+        "Club Captain",
+        "Fixtures & Permissions"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "John Moody",
+      "roles": [
+        "Mapping"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Barry Olds",
+      "roles": [
+        "SI Coordinator"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Ivor Marshall",
+      "roles": [
+        "Committee"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Becky Nesbit",
+      "roles": [
+        "Committee"
+      ],
+      "email": "",
+      "photo": ""
+    },
+    {
+      "name": "Elsie Hargreaves",
+      "roles": [
+        "Equipment (ex-officio)"
+      ],
+      "email": "",
+      "photo": ""
+    }
+  ]
+}

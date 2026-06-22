@@ -1,0 +1,50 @@
+{
+  "_comment": "Text content for the homepage. Body / lede fields support markdown (links, bold, italics) and are rendered as inline HTML at build time.",
+  "hero": {
+    "eyebrow": "Cornwall · a British Orienteering club",
+    "heading": "Orienteering across the woods, moors and coast of *Cornwall*.",
+    "lede": "Cornwall Orienteering Club (KERNO) has been promoting the sport across Cornwall since 1982. We run friendly events throughout the year - woodland, parkland, urban and coastal - for everyone from complete beginners to seasoned competitors. You don't need to be a member to take part; pick a course to suit yourself and navigate your way round at your own pace. Newcomers are always welcome, with guidance offered by club members.",
+    "ledeCtaLabel": "Join us",
+    "ledeCtaUrl": "https://www.cornwallorienteering.org.uk/main/about_us/membership.php",
+    "primaryCtaLabel": "All upcoming events",
+    "primaryCtaUrl": "/events",
+    "stats": [
+      {
+        "label": "Founded",
+        "value": "1982"
+      },
+      {
+        "label": "Covering",
+        "value": "Truro, Camborne, Falmouth, Newquay, Bodmin and across Cornwall"
+      }
+    ]
+  },
+  "alsoComingUp": {
+    "eyebrow": "Also coming up",
+    "linkLabel": "Full calendar",
+    "linkUrl": "/events"
+  },
+  "anytime": {
+    "eyebrow": "Getting started",
+    "heading": "New here? Useful links and resources",
+    "body": "New to orienteering, or want to brush up before an event? Here are KERNO's guides, the permanent courses you can run any day, and our club policies."
+  },
+  "social": {
+    "eyebrow": "Stay in touch",
+    "heading": "Event updates, photos, and last-minute changes.",
+    "body": "Weather calls, course photos, and the post-event chat all live on our socials. Follow us to keep up to date with everything happening at Cornwall Orienteering Club."
+  },
+  "widerSport": {
+    "eyebrow": "British Orienteering News",
+    "boBlurb": "Cornwall Orienteering Club is a member club of British Orienteering, the national governing body for the sport in the UK, and of the South West Orienteering Association (SWOA).",
+    "allNewsLabel": "All BO news",
+    "allNewsUrl": "https://www.britishorienteering.org.uk/news_archive"
+  },
+  "newcomerCta": {
+    "eyebrow": "Interested in knowing more?",
+    "heading": "The adventure sport of finding your way, *at your own pace*.",
+    "body": "Orienteering is an adventure sport where you use a map to visit checkpoints. The speed and the route are entirely up to you. It's a sport that rewards quick thinking and spotting the best route between checkpoints - and anyone can have a go, whatever your age or fitness.",
+    "ctaLabel": "Read the guide",
+    "ctaUrl": "https://www.cornwallorienteering.org.uk/main/about_us/what_is_o.php"
+  }
+}

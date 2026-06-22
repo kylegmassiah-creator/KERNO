@@ -1,0 +1,10 @@
+{
+  "hero": {
+    "eyebrow": "Results archive",
+    "heading": "Past results",
+    "lede": "Results from KERNO events before 2024. Click a year to expand. Recent results from 2024 onwards live on each event's own page on the Events list."
+  },
+  "introNote": "All files have been mirrored from the previous KERNO website so they stay available forever. Splits, simple results and any photos for each event are grouped together. Each year opens closed; click to expand.",
+  "emptyYearMessage": "No files held for this year.",
+  "emptyArchiveMessage": "The archive is being prepared. Once the migration script has run there will be a year-by-year list of every KERNO event from 2009 to 2023."
+}

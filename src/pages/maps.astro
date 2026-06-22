@@ -1,0 +1,582 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+import text from '../data/maps-text.json';
+
+// Google Maps JavaScript API key - set in Netlify env vars as
+// PUBLIC_GOOGLE_MAPS_API_KEY. Restricted in the Google Cloud console
+// to cornwallorienteering.org.uk + the Netlify preview URLs + Maps JavaScript API only.
+// If unset, the overview map is hidden gracefully.
+const _googleMapsKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_KEY = typeof _googleMapsKey === 'string' ? _googleMapsKey : '';
+
+// ─────── Data
+const allMaps = (await getCollection('maps'))
+  .filter(m => !m.data.draft)
+  .sort((a, b) => a.data.title.localeCompare(b.data.title));
+
+// Subset of mapped areas that have a permanent orienteering course (POC)
+const pocMaps = allMaps.filter(m => m.data.permanentCourse);
+
+// Public RouteGadget index, every map card links here. Committee can later
+// add a per-map `routeGadgetUrl` field if they want specific RG entries.
+const ROUTEGADGET_URL = "https://www.cornwall.routegadget.co.uk/rg2/";
+
+// Hero heading uses {count} as a placeholder for the dynamic map count.
+const heroHeading = text.hero.headingTemplate.replace('{count}', String(allMaps.length));
+// Lede may contain markdown links (e.g. the RouteGadget link). Render
+// inline so any link the editor adds in the CMS still works.
+marked.setOptions({ gfm: true, breaks: false });
+const heroLedeHtml = marked.parseInline(text.hero.lede ?? '');
+
+// Group by terrain
+const terrainOrder = ['urban', 'parkland', 'forest', 'moorland', 'mtbo', 'mixed'] as const;
+const terrainLabel: Record<string, string> = {
+  urban: 'Urban',
+  parkland: 'Parkland',
+  forest: 'Forest',
+  moorland: 'Moorland',
+  mtbo: 'Mountain bike',
+  mixed: 'Mixed terrain',
+};
+// Per-terrain blurb text lives in the CMS so editors can rewrite without
+// touching code. See src/data/maps-text.json.
+const terrainBlurb: Record<string, string> = text.terrainBlurbs;
+
+const grouped = terrainOrder.map(t => ({
+  terrain: t,
+  maps: allMaps.filter(m => m.data.terrain === t),
+})).filter(g => g.maps.length > 0);
+
+// ─────── High-level map of every mapped area with coordinates.
+// Pins clickable → jump straight to each area's detail page. Magenta
+// pin for POC areas (you can run any day), navy for everything else.
+const mapPins = allMaps
+  .filter(m => typeof m.data.coords?.lat === 'number' && typeof m.data.coords?.lng === 'number')
+  .map(m => ({
+    lat: m.data.coords!.lat,
+    lng: m.data.coords!.lng,
+    title: m.data.title,
+    nearTown: m.data.nearTown ?? '',
+    terrain: terrainLabel[m.data.terrain] ?? m.data.terrain,
+    poc: !!m.data.permanentCourse,
+    url: `/maps/${m.id}`,
+  }));
+---
+<Layout
+  title="Mapped areas, Cornwall Orienteering Club"
+  description="The KERNO mapped-areas library, every venue KERNO has surveyed across Cornwall, plus permanent courses you can run any time."
+>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Page hero -->
+  <PageHero
+    page="maps"
+    eyebrow={text.hero.eyebrow}
+    heading={heroHeading}
+  >
+    <p class="page-lede rise d-3" set:html={heroLedeHtml}></p>
+
+    <nav class="terrain-jump rise d-4" aria-label="Jump to section">
+      {pocMaps.length > 0 && (
+        <a href="#permanent-courses" class="poc-jump">⭐ Permanent courses ({pocMaps.length})</a>
+      )}
+      {grouped.map(g => (
+        <a href={`#${g.terrain}`}>{terrainLabel[g.terrain]} ({g.maps.length})</a>
+      ))}
+    </nav>
+  </PageHero>
+
+  <!-- ─────────────────────────── Overview map: every mapped area pinned
+       Powered by Google Maps JavaScript API. The API key (restricted to
+       KERNO domains + Maps JS only) is read from the PUBLIC_GOOGLE_MAPS_API_KEY
+       env var in Netlify and baked in at build time. -->
+  {mapPins.length > 0 && GOOGLE_MAPS_KEY && (
+    <section class="maps-overview" aria-labelledby="maps-overview-heading">
+      <div class="maps-overview-wrap">
+        <div class="maps-overview-head">
+          <p class="eyebrow">{text.overview.eyebrow}</p>
+          <h2 id="maps-overview-heading">{text.overview.heading}</h2>
+          <p class="maps-overview-blurb">{text.overview.blurb}</p>
+        </div>
+
+        {text.overview.landownerNote && (
+          <p class="maps-overview-note" set:html={marked.parseInline(text.overview.landownerNote)} />
+        )}
+
+        <div id="maps-overview-map" class="maps-overview-map" data-maps={JSON.stringify(mapPins)}></div>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Permanent courses (POCs), venues you can run any time -->
+  {pocMaps.length > 0 && (
+    <section id="permanent-courses" class="terrain-section terrain-poc">
+      <div class="terrain-wrap">
+        <div class="sec-head">
+          <div>
+            <p class="eyebrow">Permanent courses (POCs)</p>
+            <p class="terrain-blurb">Mapped areas with permanent posts you can run any day of the week. Pick up the map, find the controls in any order, no event required. See the <a href="/information/anytime-orienteering">Anytime Orienteering page</a> for MapRun courses too. For more POCs visit <a href="https://www.goorienteering.org.uk/courses" rel="noopener" target="_blank">British Orienteering's Find a Course site →</a></p>
+          </div>
+          <span class="sec-count">{pocMaps.length} map{pocMaps.length === 1 ? '' : 's'}</span>
+        </div>
+        <ul class="map-grid">
+          {pocMaps.map(m => (
+            <li>
+              <a class="map-card map-card--poc" href={`/maps/${m.id}`}>
+                <div class="map-card-body">
+                  {m.data.nearTown && <p class="map-card-near">{m.data.nearTown}</p>}
+                  <h3>{m.data.title}</h3>
+                  <p class="map-card-summary">{m.data.summary}</p>
+                  <div class="map-card-meta">
+                    <span class="permanent-tag">Permanent course</span>
+                  </div>
+                </div>
+                <span class="map-card-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Map sections by terrain -->
+  {grouped.map(({ terrain, maps }) => (
+    <section id={terrain} class={`terrain-section terrain-${terrain}`}>
+      <div class="terrain-wrap">
+        <div class="sec-head">
+          <div>
+            <p class="eyebrow">{terrainLabel[terrain]}</p>
+            <p class="terrain-blurb">{terrainBlurb[terrain]}</p>
+          </div>
+          <span class="sec-count">{maps.length} map{maps.length === 1 ? '' : 's'}</span>
+        </div>
+        <ul class="map-grid">
+          {maps.map(m => (
+            <li>
+              <a class="map-card" href={`/maps/${m.id}`}>
+                <div class="map-card-body">
+                  {m.data.nearTown && <p class="map-card-near">{m.data.nearTown}</p>}
+                  <h3>{m.data.title}</h3>
+                  <p class="map-card-summary">{m.data.summary}</p>
+                  <div class="map-card-meta">
+                    {m.data.permanentCourse && <span class="permanent-tag">Permanent course</span>}
+                  </div>
+                </div>
+                <span class="map-card-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  ))}
+
+</main>
+
+</Layout>
+
+<!-- ─── Google Maps initialiser, runs once the API has loaded ───
+     Defined BEFORE the API script so its callback can find it. The
+     orienteering control-flag icon is drawn inline as a data-URL SVG. -->
+{mapPins.length > 0 && GOOGLE_MAPS_KEY && (
+  <>
+    <script is:inline>
+      // Iconic orienteering control flag - red triangle banner on a
+      // black pole. Drawn inline as a base64-encoded SVG so we don't
+      // need to ship a separate image file.
+      window.__pfoFlagSvg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 40" width="30" height="40">' +
+          '<ellipse cx="9" cy="38" rx="6" ry="1.5" fill="rgba(0,0,0,0.35)"/>' +
+          '<line x1="6" y1="6" x2="6" y2="38" stroke="#1d1d1b" stroke-width="2" stroke-linecap="round"/>' +
+          '<polygon points="6,6 28,6 6,17" fill="#ffffff" stroke="#1d1d1b" stroke-width="1"/>' +
+          '<polygon points="6,17 28,6 28,28" fill="#d62828" stroke="#1d1d1b" stroke-width="1"/>' +
+        '</svg>'
+      );
+
+      // Google Maps will call this once the API script has finished
+      // loading. We attach it to window so the async loader can find
+      // it via the `callback=initPfoMapsOverview` URL parameter below.
+      window.initPfoMapsOverview = function () {
+        var el = document.getElementById('maps-overview-map');
+        if (!el || typeof google === 'undefined' || !google.maps) return;
+        var pins = [];
+        try { pins = JSON.parse(el.dataset.maps || '[]'); } catch (e) {}
+        if (pins.length === 0) return;
+
+        var CORNWALL_CENTRE = { lat: 50.266, lng: -5.053 };
+        var map = new google.maps.Map(el, {
+          center: CORNWALL_CENTRE,
+          zoom: 11,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
+          scrollwheel: false,    // matches the events page - no scroll-jacking
+          gestureHandling: 'cooperative',
+        });
+
+        var iconUrl = 'data:image/svg+xml;charset=UTF-8,' +
+          encodeURIComponent(window.__pfoFlagSvg);
+        var iconOptions = {
+          url: iconUrl,
+          scaledSize: new google.maps.Size(30, 40),
+          anchor: new google.maps.Point(6, 38),
+        };
+
+        // Shared InfoWindow - open one at a time so the map doesn't
+        // clutter when visitors click around.
+        var infoWindow = new google.maps.InfoWindow();
+        var bounds = new google.maps.LatLngBounds();
+
+        pins.forEach(function (p) {
+          var pos = { lat: p.lat, lng: p.lng };
+          var marker = new google.maps.Marker({
+            position: pos,
+            map: map,
+            icon: iconOptions,
+            title: p.title,
+          });
+          bounds.extend(pos);
+
+          var near = p.nearTown
+            ? '<span class="m-near">' + p.nearTown + ' · ' + p.terrain + '</span>'
+            : '<span class="m-near">' + p.terrain + '</span>';
+          var poc = p.poc ? '<br><span class="m-poc">Permanent course</span>' : '';
+          var html =
+            '<div class="club-info">' +
+              '<strong><a href="' + p.url + '">' + p.title + '</a></strong><br>' +
+              near + poc +
+            '</div>';
+
+          marker.addListener('click', function () {
+            infoWindow.setContent(html);
+            infoWindow.open({ anchor: marker, map: map });
+          });
+        });
+
+        // Fit to all pins (with Cornwall in the centre as a baseline)
+        // but never zoom in tighter than 11 - single-pin street-level
+        // zoom is disorientating on first load.
+        bounds.extend(CORNWALL_CENTRE);
+        map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+        var listener = google.maps.event.addListenerOnce(map, 'idle', function () {
+          if (map.getZoom() > 11) map.setZoom(11);
+        });
+      };
+    </script>
+    <script
+      is:inline
+      async
+      defer
+      src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&callback=initPfoMapsOverview&loading=async&v=weekly`}
+    ></script>
+  </>
+)}
+
+<style>
+  /* ─────────────────────────── Overview map (every mapped area pinned) */
+  .maps-overview {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(28px, 4vw, 48px) var(--pad-x) clamp(12px, 2vw, 20px);
+  }
+  .maps-overview-wrap {
+    display: grid;
+    gap: 18px;
+  }
+  .maps-overview-head .eyebrow { color: var(--gold-muted); margin-bottom: 12px; }
+  .maps-overview-head h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    margin: 0 0 8px 0;
+    max-width: 32ch;
+  }
+  .maps-overview-blurb {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 70ch;
+    margin: 0;
+  }
+  .maps-overview-note {
+    border-left: 3px solid var(--gold);
+    background: var(--paper-2);
+    padding: 10px 14px;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .maps-overview-note :global(strong) { color: var(--ink); font-weight: 600; }
+  /* Inline link inside the landowner-permission note. CMS-editable -
+     editors may add a markdown link, and set:html bypasses Astro
+     scoping so without :global() it would render as plain text. */
+  .maps-overview-note :global(a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .maps-overview-note :global(a:hover),
+  .maps-overview-note :global(a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  .maps-overview-map {
+    height: clamp(320px, 50vh, 520px);
+    width: 100%;
+    border: 1px solid var(--rule);
+    background: var(--paper-2);
+  }
+  /* Google Maps InfoWindow content - keep typography on-brand */
+  .maps-overview :global(.club-info) {
+    font-family: var(--ff-body);
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 2px 4px 2px 0;
+  }
+  .maps-overview :global(.club-info strong a) {
+    color: var(--navy);
+    text-decoration: none;
+    border-bottom: 1px solid var(--gold);
+  }
+  .maps-overview :global(.club-info strong a:hover) {
+    color: var(--plum);
+    border-color: var(--plum);
+  }
+  .maps-overview :global(.club-info .m-near) {
+    color: var(--ink-mute);
+    font-size: 12px;
+  }
+  .maps-overview :global(.club-info .m-poc) {
+    display: inline-block;
+    margin-top: 4px;
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--plum);
+  }
+
+  /* ─────────────────────────── Page hero */
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(36px, 4vw, 60px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(34px, 5vw, 60px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0 0 24px 0;
+  }
+  .terrain-jump {
+    display: flex; flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: center;
+  }
+  .terrain-jump a {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    background: var(--paper);
+    border: 1px solid var(--rule-2);
+    color: var(--ink);
+    transition: background .18s, color .18s;
+  }
+  .terrain-jump a:hover { background: var(--plum); color: var(--paper); border-color: var(--plum); }
+
+  /* ─────────────────────────── Terrain sections */
+  .terrain-section {
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+  }
+  .terrain-section:nth-child(even) { background: var(--paper-2); }
+  .terrain-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .sec-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--ink);
+    gap: 16px;
+  }
+  .sec-head .eyebrow {
+    margin-bottom: 6px;
+    color: var(--gold-muted);
+  }
+  .sec-head .eyebrow::before { background: var(--plum); }
+  .terrain-blurb {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 80ch;
+  }
+  .terrain-blurb a {
+    color: var(--navy);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+    transition: opacity 120ms ease;
+  }
+  .terrain-blurb a:hover { opacity: 0.7; }
+  .sec-count {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ─────────────────────────── Map grid, text-only clickable blocks
+     We deliberately don't show the orienteering map images (licensing
+     held by individual surveyors). Each block links through to the map's
+     detail page where members can find the RouteGadget link, OS grid ref
+     and any access notes. */
+  .map-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .map-grid > li { display: block; }
+  .map-card {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 18px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-2);
+    padding: 18px 20px 18px 22px;
+    height: 100%;
+    transition: border-left-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  .map-card:hover {
+    border-left-color: var(--plum);
+    background: var(--paper-2);
+    transform: translateX(2px);
+  }
+  .map-card:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  .map-card--poc {
+    border-left-color: var(--plum);
+    background: linear-gradient(to right, var(--paper-2), var(--paper) 60%);
+  }
+  .map-card--poc:hover {
+    border-left-color: var(--plum-deep);
+  }
+  .map-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .map-card-near {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin: 0;
+  }
+  .map-card-body h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0;
+    color: var(--ink);
+  }
+  .map-card-summary {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 2px 0 0 0;
+  }
+  .map-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .permanent-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--plum);
+    color: var(--paper);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .scale-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--paper-2);
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .map-card--poc .scale-tag { background: var(--paper); }
+  .map-card-arrow {
+    align-self: center;
+    font-family: var(--ff-display);
+    font-size: 22px;
+    color: var(--ink-mute);
+    transition: color .18s ease, transform .18s ease;
+  }
+  .map-card:hover .map-card-arrow {
+    color: var(--plum);
+    transform: translateX(3px);
+  }
+
+  @media (max-width: 720px) {
+    .map-grid { grid-template-columns: 1fr; gap: 10px; }
+    .sec-head { flex-direction: column; gap: 10px; }
+    .terrain-jump a { font-size: 10px; padding: 5px 10px; }
+    .map-card { padding: 16px 18px 16px 20px; }
+  }
+</style>

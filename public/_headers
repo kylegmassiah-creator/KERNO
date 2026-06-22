@@ -1,0 +1,66 @@
+# Cornwall Orienteering Club - Netlify response headers
+# Docs: https://docs.netlify.com/routing/headers/
+#
+# NOTE: deliberately NO Content-Security-Policy. We tried adding one earlier
+# and it broke Pagefind's WebAssembly-based search engine. Adding CSP back
+# would require very careful per-path rules for /search and /pagefind/* -
+# until that's tested end-to-end, leaving it off is the safe default.
+
+# ───── Safe security headers (apply to every response) ─────────────────
+# These don't affect Pagefind, the Decap CMS, Leaflet, or any other site
+# functionality - they just close off common attack patterns and help the
+# site score well on Lighthouse "Best Practices".
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), midi=(), serial=(), bluetooth=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  X-DNS-Prefetch-Control: on
+
+# ───── Admin area - never index, never cache ──────────────────────────
+# Stops search engines indexing /admin (the Decap login page is private)
+# and prevents browser caching from showing stale admin UI.
+/admin/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Cache-Control: no-store, no-cache, must-revalidate
+
+# ───── Netlify Function (BOF feed proxy) - explicit CORS ──────────────
+# The function already sets Access-Control-Allow-Origin; this just makes
+# the cache behaviour visible in headers and signals intent.
+/api/neighbour-events
+  Access-Control-Allow-Origin: *
+  X-Robots-Tag: noindex
+
+# ───── Long-cache static assets (versioned by content hash by Astro) ──
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000
+
+/images/*
+  Cache-Control: public, max-age=31536000
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Pagefind on-site search index. Content-hashed filenames so safe to cache
+# forever; massively speeds up search on return visits.
+/pagefind/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# ───── HTML pages - short cache, must revalidate ──────────────────────
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# ───── Sitemap and feeds - modest cache ────────────────────────────────
+/sitemap-*.xml
+  Cache-Control: public, max-age=3600
+
+/events.ics
+  Cache-Control: public, max-age=3600

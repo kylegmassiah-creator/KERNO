@@ -1,0 +1,234 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { marked } from 'marked';
+// All copy lives in src/data/membership-text.json - edit via the CMS
+// at /admin → Site settings → Membership page text. Body fields are
+// rendered as markdown (paragraphs, links, bold).
+import text from '../data/membership-text.json';
+marked.setOptions({ gfm: true, breaks: false });
+const md = (s: string) => marked.parse(s ?? '');
+const inline = (s: string) => marked.parseInline(s ?? '');
+---
+<Layout
+  title="Membership, Cornwall Orienteering Club"
+  description="How to join KERNO, the benefits of membership, and current annual fees."
+>
+
+<main id="main">
+
+  <PageHero
+    page="membership"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  >
+    <div class="hero-cta-row rise d-4">
+      <a class="btn btn-primary" href={text.hero.primaryCtaUrl} rel="noopener">{text.hero.primaryCtaLabel} <span class="arrow">→</span></a>
+      <a class="btn btn-ghost" href={text.hero.secondaryCtaUrl}>{text.hero.secondaryCtaLabel}</a>
+    </div>
+  </PageHero>
+
+  <!-- ─────────────────────────── Why join -->
+  <section id="what-you-get" class="info-block">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.whatYouGet.eyebrow}</p>
+      <h2>{text.whatYouGet.heading}</h2>
+
+      <div class="benefits-grid">
+        {text.whatYouGet.benefits.map(b => (
+          <div>
+            <h3>{b.title}</h3>
+            <p>{b.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Memberships included -->
+  <section class="info-block alt">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.threeMemberships.eyebrow}</p>
+      <h2>{text.threeMemberships.heading}</h2>
+      <p class="cost-intro">{text.threeMemberships.body}</p>
+      <p class="cost-note">{text.threeMemberships.note}</p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── How to join -->
+  <section class="info-block">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.howToJoin.eyebrow}</p>
+      <h2>{text.howToJoin.heading}</h2>
+      <ol class="steps-list">
+        {text.howToJoin.steps.map(step => (
+          <li set:html={inline(step)} />
+        ))}
+      </ol>
+
+      <p class="join-cta">
+        <a class="btn btn-primary" href={text.howToJoin.ctaUrl} rel="noopener">{text.howToJoin.ctaLabel} <span class="arrow">→</span></a>
+      </p>
+
+      <p class="contact-note" set:html={inline(text.howToJoin.contactNote)} />
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0 0 26px 0;
+  }
+  .hero-cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  /* Info blocks (shared with other static pages) */
+  .info-block { padding: clamp(48px, 5vw, 80px) var(--pad-x); }
+  .info-block.alt { background: var(--paper-2); }
+  .info-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .info-block .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .info-block .eyebrow::before { background: var(--plum); }
+  .info-block h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(28px, 3.5vw, 44px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 32px 0;
+    max-width: 28ch;
+  }
+  .info-block h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 19px;
+    line-height: 1.2;
+    color: var(--ink);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 8px 0;
+  }
+  .info-block p,
+  .info-block :global(.md-body p) {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+  }
+  /* Inline links across the membership page. Covers:
+     - `.info-block a`            - links in hardcoded markup
+     - `.md-body a`               - links inside markdown rendered via set:html
+     - `.steps-list a`            - links inside the "How to join" numbered steps
+     - `.contact-note a`          - links inside the closing contact note (which
+                                    currently contains [Emma Taylor](/contacts);
+                                    was rendering as plain text until this rule
+                                    was added - Andy's "hard to see" report).
+     All four match the standard prose-link pattern used elsewhere on the
+     site (navy + 2px gold underline + magenta hover). */
+  .info-block a,
+  .info-block :global(.md-body a),
+  .info-block :global(.steps-list a),
+  .info-block :global(.contact-note a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .info-block a:hover,
+  .info-block a:focus-visible,
+  .info-block :global(.md-body a:hover),
+  .info-block :global(.md-body a:focus-visible),
+  .info-block :global(.steps-list a:hover),
+  .info-block :global(.steps-list a:focus-visible),
+  .info-block :global(.contact-note a:hover),
+  .info-block :global(.contact-note a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  .info-block :global(.md-body strong) { color: var(--ink); font-weight: 500; }
+
+  /* Benefits */
+  .benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 32px 36px;
+  }
+  .benefits-grid h3 {
+    border-top: 2px solid var(--plum);
+    padding-top: 12px;
+  }
+
+  /* Memberships-included block */
+  .cost-intro { max-width: 60ch; margin-bottom: 16px; }
+  .cost-note {
+    font-size: 14px;
+    color: var(--ink-mute);
+    max-width: 60ch;
+    font-style: italic;
+    margin-top: 12px;
+  }
+
+  /* Steps list */
+  .steps-list {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 28px 0;
+    display: grid;
+    gap: 18px;
+    max-width: 65ch;
+  }
+  .steps-list li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 56px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+  .steps-list li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: -2px;
+    width: 38px; height: 38px;
+    display: grid; place-items: center;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .steps-list strong { color: var(--ink); font-weight: 500; }
+
+  .join-cta { margin: 8px 0 24px 0; }
+  .contact-note { font-size: 14px; color: var(--ink-mute); }
+</style>

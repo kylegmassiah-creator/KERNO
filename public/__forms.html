@@ -1,0 +1,43 @@
+<!--
+  Netlify Forms shadow file - DO NOT DELETE.
+
+  Astro strips non-standard HTML attributes during the build, including the
+  `data-netlify="true"` and `netlify-honeypot="bot-field"` attributes that
+  Netlify Forms looks for. As a result, the real <form> on /contacts loses
+  its Netlify markers and the form isn't registered, and submissions are
+  silently dropped.
+
+  The canonical Astro + Netlify Forms workaround is to ship a STATIC HTML
+  file in /public that Netlify's build-time form scraper can read. /public
+  is copied to the build output verbatim, so attributes survive.
+
+  Once Netlify has scraped this file and registered the `committee-contact`
+  form, the real form on /contacts works because each submission carries
+  the hidden <input name="form-name" value="committee-contact"> input.
+
+  Field names here MUST match the live form on /contacts exactly:
+    recipient, name, email, subject, message, bot-field (honeypot).
+
+  This page is intentionally minimal - Netlify reads it during deploy and
+  visitors don't need to see it. Path `/__forms.html` keeps it out of the
+  way of normal navigation.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Netlify Forms registration</title>
+  <meta name="robots" content="noindex">
+</head>
+<body>
+  <form name="committee-contact" netlify netlify-honeypot="bot-field" hidden>
+    <input type="hidden" name="form-name" value="committee-contact" />
+    <input name="bot-field" />
+    <select name="recipient"></select>
+    <input name="name" type="text" />
+    <input name="email" type="email" />
+    <input name="subject" type="text" />
+    <textarea name="message"></textarea>
+  </form>
+</body>
+</html>

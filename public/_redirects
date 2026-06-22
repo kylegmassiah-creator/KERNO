@@ -1,0 +1,88 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Netlify _redirects - legacy URL redirects from the old cornwallorienteering.org.uk site.
+#
+# Each line: <from> <to> <status>
+#  - 301 = permanent (passes SEO equity)
+#  - 302 = temporary
+#  - 200 = rewrite (URL stays the same in the browser; only use deliberately)
+#
+# Add new patterns here as committee members spot 404s in Netlify Analytics.
+# Test individual redirects with:  curl -I https://cornwallorienteering.org.uk/<old-path>
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─── Top-level page renames / moves ──────────────────────────────────────────
+/home                   /                          301
+/index.html             /                          301
+/index.php              /                          301
+
+/about-us               /about                     301
+/contact                /contacts                  301
+/contact-us             /contacts                  301
+/membership-fees        /membership                301
+/join                   /membership                301
+/join-us                /membership                301
+/joining                /membership                301
+/new-to-orienteering    /newcomers                 301
+/beginners              /newcomers                 301
+/getting-started        /newcomers                 301
+
+# ─── Events (old site used /event/, /events/upcoming, /results, /fixtures) ──
+/event/*                /events/:splat             301
+/events/upcoming        /events                    301
+/events/past            /events#past               301
+/results                /events#past               301
+/fixtures               /events                    301
+/calendar               /events                    301
+
+# ─── News / blog (WordPress-style category + dated paths) ────────────────────
+/news/category/*        /news                      301
+/category/news          /news                      301
+/category/news/*        /news                      301
+/blog                   /news                      301
+/blog/*                 /news/:splat               301
+# WordPress dated permalinks - collapse to /news/<slug>
+/20*/*/*/*              /news/:splat               301
+
+# ─── Specific old KERNO news + info article URLs that have moved to /information
+# (these were "topic" posts on the old site that now live as proper info pages)
+/news/permanent-orienteering-courses-pocs            /information/permanent-orienteering-courses   301
+/news/maprun-a-new-version-of-the-app-is-now-available  /information/maprun-orienteering-courses    301
+/info/anytime-orienteering                           /information/anytime-orienteering              301
+/info/permanent-orienteering-courses                 /information/permanent-orienteering-courses    301
+/info/maprun-orienteering-courses                    /information/maprun-orienteering-courses       301
+/permanent-orienteering-courses                      /information/permanent-orienteering-courses    301
+/maprun                                              /information/maprun-orienteering-courses       301
+/anytime-orienteering                                /information/anytime-orienteering              301
+
+# ─── Maps ────────────────────────────────────────────────────────────────────
+/map/*                  /maps/:splat               301
+/areas                  /maps                      301
+/areas/*                /maps/:splat               301
+/our-maps               /maps                      301
+/permanent-courses      /maps                      301
+/poc                    /maps                      301
+
+# ─── Information hub ─────────────────────────────────────────────────────────
+/info                   /information               301
+/info/*                 /information/:splat        301
+/policies               /information               301
+/policies/*             /information/:splat        301
+/privacy                /information/privacy       301
+/privacy-policy         /information/privacy       301
+/safeguarding           /information/safeguarding  301
+/insurance              /information/insurance     301
+/constitution           /information/constitution  301
+
+# ─── Training ────────────────────────────────────────────────────────────────
+/training-events        /training                  301
+/coaching               /training                  301
+
+# ─── WordPress / php artefacts ───────────────────────────────────────────────
+/wp-admin/*             /admin/                    301
+/wp-login.php           /admin/                    301
+/feed                   /news                      301
+/?feed=*                /news                      301
+/?p=*                   /news                      301
+
+# ─── Decap CMS admin (no trailing slash → trailing slash) ────────────────────
+/admin                  /admin/                    301

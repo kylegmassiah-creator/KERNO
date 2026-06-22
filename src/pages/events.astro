@@ -1,0 +1,1429 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import EventCalendar from '../components/EventCalendar.astro';
+import { getCollection } from 'astro:content';
+import { resolveCoords } from '../lib/coords';
+import { neighbouringClubs } from '../data/neighbouring-clubs';
+import { isEventUpcoming, isEventPast } from '../lib/event-state';
+// Editable wording lives in src/data/events-text.json (Site settings →
+// Events page text in the CMS). Anything that comes from event data
+// itself (titles, dates, locations) is auto-generated and not in here.
+import text from '../data/events-text.json';
+import { marked } from 'marked';
+marked.setOptions({ gfm: true, breaks: false });
+const inline = (s: string) => marked.parseInline(s ?? '');
+
+// Google Maps JS API key - set in Netlify env vars as
+// PUBLIC_GOOGLE_MAPS_API_KEY. If unset, the map is hidden.
+const _googleMapsKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_KEY = typeof _googleMapsKey === 'string' ? _googleMapsKey : '';
+
+// ─────── Data: split events into upcoming and past
+// Events stay under "Upcoming" until the day AFTER the event date - so a
+// 16 May event still shows as upcoming on 16 May and only moves to results
+// on 17 May. This is independent of entryCloseDate (which only governs
+// whether the Enter CTA is shown on the detail page).
+const startOfToday = new Date();
+startOfToday.setHours(0, 0, 0, 0);
+const now = new Date(); // still used by EventCalendar etc.
+const allEvents = await getCollection('events');
+
+// Neighbouring-club events are fetched client-side at request time
+// (via /api/neighbour-events Netlify Function) because BOF blocks the
+// Netlify build server's IPs. Until that promise resolves, the page
+// renders the fallback club-list below; the script swaps it out for a
+// populated table on success.
+
+const upcoming = allEvents
+  .filter(e => isEventUpcoming(e.data, now) && !e.data.cancelled && !e.data.hidden)
+  .sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
+
+const past = allEvents
+  .filter(e => isEventPast(e.data, now) && !e.data.hidden)
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+
+// Quick-glance cards at the top of the page, mirroring the homepage
+// hero-side: the very next upcoming event and the most recently
+// completed event with results.
+function hasReportText(e: { data: { report?: string } }) {
+  return typeof e.data.report === 'string' && e.data.report.trim().length > 0;
+}
+const nextEvent = upcoming[0];
+const latestResultEvent = past.find(e =>
+  (e.data.results && e.data.results.length > 0) || hasReportText(e)
+);
+
+// Group past events by year
+const pastByYear = past.reduce((acc, event) => {
+  const year = event.data.date.getFullYear();
+  if (!acc[year]) acc[year] = [];
+  acc[year].push(event);
+  return acc;
+}, {} as Record<number, typeof past>);
+const pastYears = Object.keys(pastByYear).map(Number).sort((a, b) => b - a);
+const currentYear = now.getFullYear();
+
+// ─────── Date formatters
+// All formatters pin timeZone: 'Europe/London' so dates always render in UK
+// time regardless of where the build runs. Without this, a YAML date like
+// `date: 2026-06-18` (parsed as UTC midnight) would render as June 17 on
+// Netlify's US-east build infra, shifting every event listing by a day.
+const fmtRowDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const fmtDay = (d: Date) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'Europe/London' }).format(d);
+const fmtMonth = (d: Date) => new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'Europe/London' }).format(d);
+const fmtWeekday = (d: Date) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'Europe/London' }).format(d);
+
+// Formatters for the top quick-glance cards. Mirror the homepage so the
+// cards on /events read identically to the cards on /.
+const fmtFeaturedDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'long', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+const fmtCardDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+---
+<Layout
+  title="Fixtures, Cornwall Orienteering Club"
+  description="Upcoming fixtures and past results from Cornwall Orienteering Club, orienteering events across Cornwall."
+>
+
+<main id="main">
+
+  <!-- ─────────────────────────── Page hero -->
+  <PageHero
+    page="events"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  >
+    <nav class="anchor-nav rise d-4" aria-label="Skip to section">
+      <a href="#calendar">Calendar</a>
+      <span aria-hidden="true">·</span>
+      <a href="#upcoming">Upcoming ({upcoming.length})</a>
+      <span aria-hidden="true">·</span>
+      <a href="#past">Past results ({past.length})</a>
+      <span aria-hidden="true">·</span>
+      <a href="/results-archive">Pre-2024 archive</a>
+      <span aria-hidden="true">·</span>
+      <a href="#neighbours">Neighbouring clubs</a>
+      <span aria-hidden="true">·</span>
+      <a href="/events.ics">📅 Subscribe to calendar</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://www.britishorienteering.org.uk/event" rel="noopener">BOF event listings →</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://www.cornwall.routegadget.co.uk/rg2/" rel="noopener">RouteGadget →</a>
+    </nav>
+
+    {/* Next Event + Latest Results cards sit inside the hero, alongside
+        the heading + lede. Mirrors the homepage layout so visitors landing
+        on /events get the same "what's happening now" summary up front. */}
+    {(nextEvent || latestResultEvent) && (
+      <Fragment slot="aside">
+        {nextEvent && (
+          <article class="next-event">
+            <p class="eyebrow"><a href="#upcoming">Next event</a></p>
+            <p class="event-when">
+              <time datetime={nextEvent.data.date.toISOString()}>{fmtFeaturedDate(nextEvent.data.date)}</time>
+            </p>
+            <h2><a href={`/events/${nextEvent.id}`}>{nextEvent.data.title}</a></h2>
+            <p class="event-where">
+              {nextEvent.data.location || nextEvent.data.summary}
+            </p>
+            {nextEvent.data.entryFee && (
+              <p class="event-terms">
+                <span>{nextEvent.data.entryFee.split(/[(.]/)[0].trim()}</span>
+              </p>
+            )}
+            {nextEvent.data.siEntriesUrl && nextEvent.data.entryCloseDate >= now ? (
+              <a class="btn btn-primary" href={nextEvent.data.siEntriesUrl} rel="noopener">Enter via SI Entries <span class="arrow">→</span></a>
+            ) : nextEvent.data.siEntriesUrl ? (
+              <>
+                <p class="entries-closed-badge">Entries closed</p>
+                <a class="next-event-details-link" href={`/events/${nextEvent.id}`}>Event details <span class="arrow">→</span></a>
+              </>
+            ) : (
+              <a class="btn btn-primary" href={`/events/${nextEvent.id}`}>Event details <span class="arrow">→</span></a>
+            )}
+          </article>
+        )}
+
+        {latestResultEvent && (
+          <article class="hero-latest">
+            <p class="eyebrow"><a href="#past">Latest results</a></p>
+            <p class="hero-latest-when">
+              <time datetime={latestResultEvent.data.date.toISOString()}>{fmtCardDate(latestResultEvent.data.date)}</time>
+              {latestResultEvent.data.location && <> · <span>{latestResultEvent.data.location}</span></>}
+            </p>
+            <h2><a href={`/events/${latestResultEvent.id}`}>{latestResultEvent.data.title}</a></h2>
+            <ul class="hero-latest-files">
+              {(latestResultEvent.data.results ?? []).filter(r => !r.hidden).slice(0, 2).map(file => (
+                <li>
+                  <a href={file.url} rel="noopener">
+                    <span class="hero-latest-tag">{file.type === 'pdf' ? 'PDF' : file.type === 'xlsx' ? 'Excel' : file.type === 'csv' ? 'CSV' : 'View'}</span>
+                    <span class="hero-latest-label">{file.label}</span>
+                  </a>
+                </li>
+              ))}
+              {hasReportText(latestResultEvent) && (
+                <li>
+                  <a href={`/events/${latestResultEvent.id}/report`}>
+                    <span class="hero-latest-tag">Report</span>
+                    <span class="hero-latest-label">Event report</span>
+                  </a>
+                </li>
+              )}
+            </ul>
+            <a class="hero-latest-link" href={`/events/${latestResultEvent.id}`}>Event results →</a>
+          </article>
+        )}
+      </Fragment>
+    )}
+  </PageHero>
+
+  <!-- ─────────────────────────── Map + Calendar (side-by-side at the top)
+       Map takes the bulk of the width, calendar sits in a narrower column
+       on the right. Stacks on phones. -->
+  {(upcoming.some(e => resolveCoords(e.data)) || upcoming.length > 0) && (
+    <section id="map" class="map-and-calendar" aria-label="Events overview">
+      <div class="mc-grid">
+        {upcoming.some(e => resolveCoords(e.data)) && (
+          <div class="mc-map">
+            <div id="events-map"
+                 class="events-map"
+                 data-events={JSON.stringify(
+                   upcoming
+                     .map(e => ({ event: e, c: resolveCoords(e.data) }))
+                     .filter(({ c }) => !!c)
+                     .map(({ event: e, c }) => ({
+                       lat: c!.lat,
+                       lng: c!.lng,
+                       title: e.data.title,
+                       url: `/events/${e.id}`,
+                       date: new Intl.DateTimeFormat('en-GB',
+                         { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' })
+                         .format(e.data.date),
+                       format: e.data.format,
+                       location: e.data.location,
+                     }))
+                 )}>
+            </div>
+            <noscript>
+              <p class="empty">The map view needs JavaScript to render. The list below works without it.</p>
+            </noscript>
+          </div>
+        )}
+
+        {upcoming.length > 0 && (
+          <div class="mc-calendar" id="calendar">
+            <div class="mc-calendar-head">
+              <p class="eyebrow">At a glance</p>
+              <span class="mc-calendar-sub">Next 2 months</span>
+            </div>
+            <EventCalendar
+              events={upcoming.map(e => ({
+                id: e.id,
+                title: e.data.title,
+                date: e.data.date,
+                format: e.data.format,
+                location: e.data.location,
+              }))}
+              monthsAhead={2}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  )}
+
+  <!-- ─────────────────────────── Upcoming events -->
+  <section id="upcoming" class="event-section">
+    <div class="sec-head">
+      <p class="eyebrow">Upcoming</p>
+      <span class="sec-count">{upcoming.length} fixture{upcoming.length === 1 ? '' : 's'}</span>
+    </div>
+    {upcoming.length === 0 ? (
+      <p class="empty">No upcoming events scheduled. Check back soon, or follow us on Facebook for early notice.</p>
+    ) : (
+      <ul class="event-list">
+        {upcoming.map(event => (
+          <li>
+            <a class="ev-row" href={`/events/${event.id}`}>
+              <time class="ev-row-date" datetime={event.data.date.toISOString()}>
+                <span class="ev-row-day">{fmtDay(event.data.date)}</span>
+                <span class="ev-row-month">{fmtMonth(event.data.date)}</span>
+                <span class="ev-row-weekday">{fmtWeekday(event.data.date)}</span>
+              </time>
+              <div class="ev-row-body">
+                <h3>{event.data.title}</h3>
+                <p class="ev-row-meta">
+                  <span>{event.data.format}</span>
+                  {event.data.location && <><span aria-hidden="true">·</span><span>{event.data.location}</span></>}
+                  {/* startTime intentionally not shown - it's the LAST start time, used
+                      internally to flip the event from Upcoming to Results, not a useful
+                      detail for visitors. */}
+                  {event.data.entryFee && <><span aria-hidden="true">·</span><span>{event.data.entryFee.split(/[(.]/)[0].trim()}</span></>}
+                </p>
+              </div>
+              <span class={`level level-${event.data.level}`}>{capitalize(event.data.level)}</span>
+              <span class="ev-row-action" aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    <!-- CTA: jump down to the neighbouring-clubs table. Bottom-right of
+         the upcoming list. The count badge is filled in client-side once
+         the /api/neighbour-events function returns. -->
+    <div class="upcoming-cta">
+      <a class="neighbour-cta" href="#neighbours">
+        <span class="neighbour-cta-icon" aria-hidden="true">↓</span>
+        <span class="neighbour-cta-text">{text.neighboursCtaLabel}</span>
+        <span class="neighbour-cta-count" data-neighbour-count hidden></span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── Past events / results -->
+  <section id="past" class="event-section past">
+    <div class="sec-head">
+      <p class="eyebrow">Past results</p>
+      <span class="sec-count">{past.length} event{past.length === 1 ? '' : 's'}</span>
+    </div>
+    {past.length === 0 ? (
+      <p class="empty">No past events to show yet.</p>
+    ) : (
+      pastYears.map(year => (
+        <details class="year-group" open={year === currentYear}>
+          <summary class="year-heading">
+            <span class="year-heading-text">{year}</span>
+            <span class="year-heading-count">{pastByYear[year].length} event{pastByYear[year].length === 1 ? '' : 's'}</span>
+            <span class="year-heading-arrow" aria-hidden="true">▾</span>
+          </summary>
+          <ul class="event-list">
+            {pastByYear[year].map(event => {
+              // Filter out any results entries marked hidden in the CMS
+              const visibleResults = (event.data.results ?? []).filter(r => !r.hidden);
+              const hasResults = visibleResults.length > 0;
+              return (
+                <li class="past-row-li">
+                  <div class="past-row-main">
+                    <a class="ev-row past-row" href={`/events/${event.id}`}>
+                      <time class="ev-row-date" datetime={event.data.date.toISOString()}>
+                        <span class="ev-row-day">{fmtDay(event.data.date)}</span>
+                        <span class="ev-row-month">{fmtMonth(event.data.date)}</span>
+                        <span class="ev-row-weekday">{fmtWeekday(event.data.date)}</span>
+                      </time>
+                      <div class="ev-row-body">
+                        <h3>{event.data.title}</h3>
+                        <p class="ev-row-meta">
+                          <span>{event.data.format}</span>
+                          {event.data.location && <><span aria-hidden="true">·</span><span>{event.data.location}</span></>}
+                        </p>
+                      </div>
+                      <span class={`level level-${event.data.level}`}>{capitalize(event.data.level)}</span>
+                    </a>
+                    {hasResults ? (
+                      <a class="results-quick-link"
+                         href={`/events/${event.id}#results`}
+                         data-results-toggle
+                         aria-expanded="false"
+                         aria-controls={`results-${event.id}`}
+                         aria-label={`${event.data.title}, show all results files`}>
+                        <span class="results-quick-tag">Results</span>
+                        <span class="results-quick-count">{visibleResults.length}</span>
+                        <span class="results-quick-arrow" aria-hidden="true">▾</span>
+                      </a>
+                    ) : (
+                      <span class="results-quick-link results-quick-link--empty" aria-hidden="true">
+                        <span class="results-quick-tag results-quick-tag--empty">No results</span>
+                      </span>
+                    )}
+                  </div>
+                  {hasResults && (
+                    <ul class="past-row-files" id={`results-${event.id}`} hidden>
+                      {visibleResults.map(file => (
+                        <li>
+                          <a href={file.url}
+                             rel="noopener"
+                             target={file.url.startsWith('http') ? '_blank' : undefined}>
+                            <span class="past-row-file-tag" data-type={file.type}>
+                              {file.type === 'pdf' ? 'PDF' : file.type === 'xlsx' ? 'Excel' : file.type === 'csv' ? 'CSV' : 'View'}
+                            </span>
+                            <span class="past-row-file-label">{file.label}</span>
+                            <span class="past-row-file-arrow" aria-hidden="true">→</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      ))
+    )}
+    {/* Pre-2024 results live on their own page so the past-events list
+        on this page doesn't go on forever. Lift them out into a single
+        accordion at /results-archive. */}
+    <p class="past-archive-link">
+      Looking for results before 2024? Head to the <a href="/results-archive">pre-2024 results archive →</a>
+    </p>
+  </section>
+
+  <!-- ─────────────────────────── Neighbouring clubs
+       Live BOF feed via /api/neighbour-events (Netlify Function).
+       Three states, all rendered server-side and toggled by the script
+       at the bottom of the page:
+         · loading  , shown by default while fetch is in flight
+         · table    , populated on success
+         · fallback , club-card list, shown if fetch fails or returns 0
+       This way the section is always meaningful even with JS off (the
+       fallback is the default visible state), and progressively
+       enhances when the function returns rows. -->
+  <section id="neighbours" class="event-section neighbours" data-neighbour-section>
+    <div class="sec-head">
+      <p class="eyebrow">{text.neighbours.eyebrow}</p>
+      <span class="sec-count" data-neighbour-count-text>{neighbouringClubs.length} clubs</span>
+    </div>
+
+    <p class="neighbours-intro" set:html={inline(text.neighbours.intro)} />
+
+    <!-- Loading state (visible by default; script hides it once fetch resolves) -->
+    <div class="neighbour-loading" data-neighbour-loading>
+      <p class="neighbour-loading-note">
+        <span class="loading-dot" aria-hidden="true"></span>
+        {text.neighbours.loadingNote}
+      </p>
+    </div>
+
+    <!-- Table, empty until populated by the script -->
+    <div class="neighbour-table-wrap" data-neighbour-table hidden>
+      <table class="neighbour-table">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Event</th>
+            <th scope="col">Club</th>
+            <th scope="col">Near</th>
+            <th scope="col">Level</th>
+          </tr>
+        </thead>
+        <tbody data-neighbour-tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Fallback, shown if fetch fails or returns no events.
+         Also the no-JS default. -->
+    <div class="neighbour-fallback" data-neighbour-fallback>
+      <p class="neighbour-fallback-note">
+        Live feed unavailable right now. Check each club's events page directly:
+      </p>
+      <ul class="neighbour-club-list">
+        {neighbouringClubs.map(club => (
+          <li>
+            <a href={club.eventsUrl} rel="noopener" target="_blank">
+              <span class="neighbour-club-abbr">{club.abbr}</span>
+              <span class="neighbour-club-name">{club.name}</span>
+              <span class="neighbour-club-region">{club.region}</span>
+              <span class="neighbour-club-arrow" aria-hidden="true">→</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+
+<script is:inline>
+  // Past-event Results toggle: click the Results button to expand an
+  // inline list of all result files for that event, instead of having
+  // to click through to the event detail page. Falls back to a normal
+  // link if JS is off.
+  document.addEventListener('DOMContentLoaded', function () {
+    var toggles = document.querySelectorAll('[data-results-toggle]');
+    Array.prototype.forEach.call(toggles, function (el) {
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        var expanded = el.getAttribute('aria-expanded') === 'true';
+        el.setAttribute('aria-expanded', String(!expanded));
+        var panelId = el.getAttribute('aria-controls');
+        var panel = panelId ? document.getElementById(panelId) : null;
+        if (panel) panel.hidden = expanded;
+        var arrow = el.querySelector('.results-quick-arrow');
+        if (arrow) arrow.textContent = expanded ? '▾' : '▴'; // ▾ / ▴
+      });
+    });
+  });
+</script>
+
+<script is:inline>
+  // Neighbouring-clubs hydration. Calls the Netlify Function that
+  // proxies BOF, then either fills in the table or leaves the fallback
+  // visible. Loading dot stays in either case until the swap happens.
+  document.addEventListener('DOMContentLoaded', function () {
+    var section  = document.querySelector('[data-neighbour-section]');
+    if (!section) return;
+    var loading  = section.querySelector('[data-neighbour-loading]');
+    var tableWrap= section.querySelector('[data-neighbour-table]');
+    var tbody    = section.querySelector('[data-neighbour-tbody]');
+    var fallback = section.querySelector('[data-neighbour-fallback]');
+    var countText= document.querySelector('[data-neighbour-count-text]');
+    var ctaCount = document.querySelector('[data-neighbour-count]');
+
+    fetch('/api/neighbour-events', { credentials: 'omit' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        var events = (data && data.events) || [];
+        if (loading) loading.hidden = true;
+        if (events.length === 0) {
+          // Keep fallback visible, nothing came back.
+          return;
+        }
+        // Build table rows
+        var rows = events.map(function (e) {
+          var d = new Date(e.date);
+          var dateStr = d.toLocaleDateString('en-GB', {
+            weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+          }).replace(',', '');
+          var clubLower = (e.club || '').toLowerCase();
+          var safe = function (s) {
+            return String(s == null ? '' : s)
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          };
+          return (
+            '<tr class="nb-row nb-row-' + safe(clubLower) + '" data-club="' + safe(clubLower) + '">' +
+              '<td class="nb-date"><time datetime="' + safe(e.date) + '">' + safe(dateStr) + '</time></td>' +
+              '<td class="nb-title"><a href="' + safe(e.url) + '" rel="noopener" target="_blank">' + safe(e.title) + '</a></td>' +
+              '<td class="nb-club"><span class="nb-club-tag nb-club-' + safe(clubLower) + '">' + safe(e.club) + '</span></td>' +
+              '<td class="nb-near">' + (e.near ? safe(e.near) : '-') + '</td>' +
+              '<td class="nb-level">' + (e.level ? safe(e.level) : '-') + '</td>' +
+            '</tr>'
+          );
+        }).join('');
+        if (tbody) tbody.innerHTML = rows;
+        if (tableWrap) tableWrap.hidden = false;
+        if (fallback) fallback.hidden = true;
+        if (countText) countText.textContent = events.length + ' fixture' + (events.length === 1 ? '' : 's');
+        if (ctaCount) {
+          ctaCount.textContent = String(events.length);
+          ctaCount.hidden = false;
+        }
+      })
+      .catch(function () {
+        // Leave fallback visible; just hide the loading note.
+        if (loading) loading.hidden = true;
+      });
+  });
+</script>
+
+{GOOGLE_MAPS_KEY && (
+  <>
+    <script is:inline>
+      // Google Maps init for the upcoming-events map at the top of /events.
+      // Default view: Cornwall town centre at zoom 11. If any upcoming
+      // event sits outside that natural radius, fitBounds extends out;
+      // zoom is capped at 11 so we never zoom in past Cornwall's default.
+      window.initPfoEventsMap = function () {
+        var el = document.getElementById('events-map');
+        if (!el || typeof google === 'undefined' || !google.maps) return;
+        var events = [];
+        try { events = JSON.parse(el.dataset.events || '[]'); } catch (e) {}
+
+        var CORNWALL_CENTRE = { lat: 50.266, lng: -5.053 };
+        var map = new google.maps.Map(el, {
+          center: CORNWALL_CENTRE,
+          zoom: 11,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
+          scrollwheel: false,
+          gestureHandling: 'cooperative',
+        });
+
+        if (events.length === 0) return;
+
+        var infoWindow = new google.maps.InfoWindow();
+        var bounds = new google.maps.LatLngBounds();
+        bounds.extend(CORNWALL_CENTRE);
+
+        events.forEach(function (e) {
+          var pos = { lat: e.lat, lng: e.lng };
+          var marker = new google.maps.Marker({
+            position: pos,
+            map: map,
+            title: e.title,
+          });
+          bounds.extend(pos);
+
+          var html =
+            '<div class="club-info">' +
+              '<strong><a href="' + e.url + '">' + e.title + '</a></strong><br>' +
+              e.date + ' · ' + e.format +
+              (e.location ? ' · ' + e.location : '') +
+            '</div>';
+          marker.addListener('click', function () {
+            infoWindow.setContent(html);
+            infoWindow.open({ anchor: marker, map: map });
+          });
+        });
+
+        map.fitBounds(bounds, { top: 30, right: 30, bottom: 30, left: 30 });
+        google.maps.event.addListenerOnce(map, 'idle', function () {
+          if (map.getZoom() > 11) map.setZoom(11);
+        });
+      };
+    </script>
+    <script
+      is:inline
+      async
+      defer
+      src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&callback=initPfoEventsMap&loading=async&v=weekly`}
+    ></script>
+  </>
+)}
+
+<style>
+  /* ─────────────────────────── Events overview, map + calendar
+     side-by-side. Map fills the left column; calendar tucks into the
+     right column at a compact size. Stacks on phones, calendar first
+     so people see "next event date" before reaching for the map. */
+  .map-and-calendar {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(20px, 3vw, 40px) var(--pad-x) clamp(8px, 2vw, 16px);
+  }
+  .mc-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: clamp(14px, 2vw, 24px);
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .mc-grid { grid-template-columns: 1fr; }
+  }
+  .events-map {
+    height: clamp(280px, 40vh, 440px);
+    width: 100%;
+    border: 1px solid var(--rule);
+    background: var(--paper-2);
+  }
+
+  /* Calendar column header */
+  .mc-calendar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 12px;
+  }
+  .mc-calendar-head .eyebrow {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin: 0;
+  }
+  .mc-calendar-head .eyebrow::before {
+    content: "";
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--plum);
+    margin-right: 8px;
+    transform: translateY(-1px);
+  }
+  .mc-calendar-sub {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  /* Compact the EventCalendar component when it lives in the side column.
+     The component's own styles use `.event-calendar`, overriding here to
+     remove its outer padding (we're already inside a padded section) and
+     stack the months vertically rather than side-by-side. */
+  .mc-calendar :global(.event-calendar) {
+    padding: 0;
+    max-width: none;
+  }
+  .mc-calendar :global(.event-calendar-key) { display: none; }
+  .mc-calendar :global(.event-calendar-grid) {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .mc-calendar :global(.cal-month) { padding: 12px 12px 10px; }
+  .mc-calendar :global(.cal-day) { font-size: 11px; }
+  .events-map :global(a) { color: var(--navy); }
+  /* Google Maps InfoWindow popups */
+  .events-map :global(.club-info) {
+    font-family: var(--ff-body);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .events-map :global(.club-info strong a) {
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-underline-offset: 2px;
+  }
+
+  /* ─────────────────────────── Page hero (smaller than homepage hero) */
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(36px, 4vw, 60px);
+  }
+  .page-hero-wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  .page-hero .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 18px;
+  }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 22ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0 0 24px 0;
+  }
+  .anchor-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    /* Breathe, keep clear space between the lede paragraph above and
+       these filter links so they read as a separate UI row. */
+    margin-top: clamp(28px, 3vw, 40px);
+    padding-top: clamp(20px, 2.5vw, 28px);
+    border-top: 1px solid var(--rule);
+  }
+  /* When the page hero has a photo backdrop, flip the anchor-nav links
+     to white so they're legible against the dark photo overlay.
+     :global() because PageHero adds the modifier class above this
+     scoped subtree. */
+  :global(.page-hero--photo) .anchor-nav a {
+    color: var(--paper);
+    border-bottom-color: rgba(244, 237, 224, 0.4);
+  }
+  :global(.page-hero--photo) .anchor-nav a:hover {
+    color: var(--gold-bright);
+    border-bottom-color: var(--gold);
+  }
+  :global(.page-hero--photo) .anchor-nav span {
+    color: var(--paper);
+    opacity: 0.7;
+  }
+
+  .anchor-nav a {
+    color: var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 2px;
+    transition: color .18s, border-color .18s;
+  }
+  .anchor-nav a:hover { color: var(--plum); border-color: var(--plum); }
+  .anchor-nav span { color: var(--ink-mute); }
+
+  /* ─────────────────────────── Section heads */
+  .event-section {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: clamp(40px, 5vw, 64px) var(--pad-x);
+  }
+  .event-section.past {
+    background: var(--paper-2);
+    max-width: none;
+    padding-left: 0; padding-right: 0;
+  }
+  .event-section.past .sec-head,
+  .event-section.past .year-group,
+  .event-section.past .past-archive-link {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding-left: var(--pad-x);
+    padding-right: var(--pad-x);
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ink);
+    gap: 16px;
+  }
+  .sec-count {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+
+  .empty {
+    color: var(--ink-soft);
+    font-size: 15px;
+    padding: 24px 0;
+  }
+
+  /* "Looking for older results?" footer line under the past-results list.
+     Styled as quiet body text with a single link, sitting under the year
+     groups so it's visible without being shouty. */
+  .past-archive-link {
+    margin: 28px 0 0;
+    padding: 18px 0 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 0.95rem;
+    color: var(--ink-mute);
+  }
+  .past-archive-link a {
+    color: var(--navy);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
+  }
+  .past-archive-link a:hover { opacity: 0.75; }
+
+  /* ─────────────────────────── Year groups (past only) */
+  /* Year groups are <details> elements - each year collapses to a single
+     clickable row. Current year opens by default (see the `open` attr
+     in the template). Andy requested this so the past-results section
+     doesn't run on forever as years accumulate. */
+  .year-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    cursor: pointer;
+    list-style: none;       /* hide default browser disclosure marker */
+    font-family: var(--ff-display);
+    font-weight: 600;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--navy);
+    margin: 0 0 12px 0;
+    padding: 6px 0 6px 12px;
+    /* Magenta tick to the left of every year heading, subtle club-colour accent */
+    border-left: 4px solid var(--plum);
+    transition: color .18s ease, border-color .18s ease;
+  }
+  .year-heading::-webkit-details-marker { display: none; }
+  .year-heading:hover { color: var(--plum); }
+  .year-heading:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  .year-heading-text { flex: 0 0 auto; }
+  .year-heading-count {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    flex: 1 1 auto;
+  }
+  .year-heading-arrow {
+    flex: 0 0 auto;
+    font-size: 20px;
+    color: var(--plum);
+    transition: transform .22s ease;
+  }
+  .year-group[open] .year-heading-arrow { transform: rotate(180deg); }
+  /* Push collapsed year groups closer together - when only the
+     summaries are visible they read as a compact list. Open groups
+     keep their breathing room from the original 40px margin below. */
+  .year-group { margin-bottom: 16px; }
+  .year-group[open] { margin-bottom: 40px; }
+  .year-group:last-child { margin-bottom: 0; }
+
+  /* ─────────────────────────── Event list */
+  .event-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .event-list li { border-bottom: 1px solid var(--rule); }
+
+  .ev-row {
+    display: grid;
+    grid-template-columns: 84px 1fr auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 18px 6px;
+    color: var(--ink);
+    transition: background .18s ease, padding-left .18s ease;
+  }
+  .ev-row:hover {
+    background: var(--paper);
+    padding-left: 14px;
+  }
+  .past-row:hover { background: var(--paper-3); }
+
+  .ev-row-date {
+    display: flex; flex-direction: column; align-items: flex-start;
+    line-height: 1;
+    border-right: 1px solid var(--rule);
+    padding-right: 14px;
+  }
+  .ev-row-day {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 32px;
+    color: var(--navy);
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .ev-row-month {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+    margin-top: 6px;
+  }
+  .ev-row-weekday {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-top: 2px;
+  }
+
+  .ev-row-body { min-width: 0; }
+  .ev-row-body h3 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 22px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    margin: 0 0 4px 0;
+    color: var(--ink);
+  }
+  .ev-row:hover .ev-row-body h3 { color: var(--navy); }
+  .ev-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .ev-row-meta span[aria-hidden="true"] { color: var(--ink-mute); }
+  .ev-row-meta .has-results { color: var(--plum); font-weight: 500; }
+
+  /* ─────────────────────────── Past row with quick results toggle.
+     The row + Results button sit horizontally in `.past-row-main`.
+     Clicking Results reveals an inline file list `.past-row-files`
+     below the row (when JS is on). When JS is off, the Results
+     button falls back to navigating to the event page #results. */
+  .past-row-li {
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+  }
+  .past-row-main {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+  .past-row-main > .ev-row { flex: 1 1 auto; min-width: 0; }
+
+  .past-row-files {
+    list-style: none;
+    margin: 0;
+    padding: 12px 18px 14px;
+    background: var(--paper-2);
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  /* Explicit override for the [hidden] attribute, needed because our
+     `display: flex` above otherwise wins over the browser's default
+     `[hidden] { display: none }` rule, leaving the panel permanently
+     visible. */
+  .past-row-files[hidden] {
+    display: none !important;
+  }
+  .past-row-files a {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    font-size: 14px;
+    text-decoration: none;
+    transition: background .18s ease, border-color .18s ease;
+  }
+  .past-row-files a:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--ink);
+  }
+  .past-row-file-tag {
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 3px 8px;
+  }
+  .past-row-files a:hover .past-row-file-tag {
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .past-row-file-label { font-weight: 500; }
+  .past-row-file-arrow { color: var(--ink-mute); }
+  .past-row-files a:hover .past-row-file-arrow { color: var(--ink); }
+
+  /* Rotate the toggle arrow when expanded for a clear affordance. */
+  .results-quick-arrow {
+    display: inline-block;
+    transition: transform .18s ease;
+  }
+  [data-results-toggle][aria-expanded="true"] .results-quick-arrow {
+    transform: rotate(180deg);
+  }
+
+  .results-quick-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 18px;
+    background: var(--navy);
+    color: var(--paper);
+    text-decoration: none;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-left: 1px solid var(--rule);
+    transition: background .18s ease, color .18s ease;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .results-quick-count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 2px 6px;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .results-quick-link:hover {
+    background: var(--navy-deep);
+    color: var(--paper);
+  }
+  .results-quick-link:hover .results-quick-count {
+    background: var(--gold-bright);
+    color: var(--ink);
+  }
+  .results-quick-tag { font-weight: 500; }
+
+  .results-quick-link--empty {
+    background: var(--paper-2);
+    color: var(--ink-mute);
+    cursor: default;
+    pointer-events: none;
+  }
+  .results-quick-tag--empty { font-weight: 400; }
+
+  @media (max-width: 600px) {
+    .past-row-li { flex-direction: column; }
+    .results-quick-link {
+      border-left: 0;
+      border-top: 1px solid var(--rule);
+      padding: 10px 18px;
+      justify-content: space-between;
+    }
+  }
+
+  .ev-row-action {
+    font-family: var(--ff-mono);
+    font-size: 18px;
+    color: var(--ink-mute);
+    transition: color .18s ease, transform .18s ease;
+  }
+  .ev-row:hover .ev-row-action {
+    color: var(--gold-muted);
+    transform: translateX(4px);
+  }
+
+  /* ─────────────────────────── Responsive */
+  @media (max-width: 720px) {
+    .ev-row {
+      grid-template-columns: 60px 1fr auto;
+      gap: 14px;
+      padding: 16px 4px;
+    }
+    .ev-row:hover { padding-left: 8px; }
+    .ev-row-action { display: none; }
+    .ev-row-day { font-size: 24px; }
+    .ev-row-body h3 { font-size: 18px; }
+    .ev-row-meta { font-size: 13px; gap: 0 8px; }
+    .ev-row-date { padding-right: 10px; }
+  }
+
+  @media (max-width: 520px) {
+    .ev-row { grid-template-columns: 56px 1fr; }
+    .ev-row .level { display: none; }
+    .ev-row-meta {
+      display: flex; flex-wrap: wrap;
+    }
+  }
+
+  /* ─────────────────────────── Upcoming CTA → Neighbouring clubs
+     Sits bottom-right of the upcoming events list, mirroring the old
+     KERNO site. Clicking jumps down to the #neighbours section. */
+  .upcoming-cta {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+  .neighbour-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    background: var(--navy);
+    color: var(--paper);
+    text-decoration: none;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid var(--navy);
+    transition: background .18s ease, color .18s ease, transform .18s ease;
+  }
+  .neighbour-cta:hover {
+    background: var(--plum);
+    border-color: var(--plum);
+    color: var(--paper);
+    transform: translateY(1px);
+  }
+  .neighbour-cta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    background: var(--gold);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .neighbour-cta-count {
+    display: inline-block;
+    min-width: 22px;
+    padding: 2px 6px;
+    background: var(--gold);
+    color: var(--ink);
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: center;
+  }
+  @media (max-width: 520px) {
+    .upcoming-cta { justify-content: stretch; }
+    .neighbour-cta { width: 100%; justify-content: center; }
+  }
+
+  /* ─────────────────────────── Neighbouring clubs section */
+  .event-section.neighbours {
+    background: var(--paper-2);
+    max-width: none;
+    padding-left: 0; padding-right: 0;
+  }
+  .event-section.neighbours .sec-head,
+  .event-section.neighbours .neighbours-intro,
+  .event-section.neighbours .neighbour-table-wrap,
+  .event-section.neighbours .neighbour-fallback {
+    max-width: var(--max-w);
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--pad-x);
+    padding-right: var(--pad-x);
+  }
+  .neighbours-intro {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 70ch;
+    margin: 0 0 24px 0;
+  }
+  .neighbours-intro a {
+    color: var(--navy);
+    border-bottom: 1px solid var(--gold);
+    padding-bottom: 1px;
+  }
+  .neighbours-intro a:hover { color: var(--plum); border-color: var(--plum); }
+
+  /* Table */
+  .neighbour-table-wrap { overflow-x: auto; }
+  .neighbour-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--paper);
+    font-size: 14px;
+  }
+  .neighbour-table thead th {
+    background: var(--navy);
+    color: var(--paper);
+    text-align: left;
+    padding: 12px 14px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--gold);
+  }
+  /* The table BODY rows + cells are inserted at runtime by the
+     hydration script, so they don't carry Astro's scoped data-attribute.
+     Wrapping these selectors in :global() makes them apply to those
+     dynamically-injected elements. */
+  :global(.neighbour-table tbody tr) {
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    transition: background .18s ease;
+  }
+  :global(.neighbour-table tbody tr:nth-child(even)) {
+    background: var(--paper-2);
+  }
+  :global(.neighbour-table tbody tr:hover) {
+    background: var(--paper-3);
+  }
+  :global(.neighbour-table td) {
+    padding: 12px 14px;
+    vertical-align: top;
+    color: var(--ink);
+  }
+  :global(.neighbour-table .nb-date) {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  :global(.neighbour-table .nb-title a) {
+    /* Use --gold-muted (now #6e5407) for ~5:1 contrast on paper.
+       The previous --gold-dark only hit ~2.2:1 and failed WCAG AA.
+       Bold weight + colour-shift on hover do the job of signalling
+       "this is a link" without an underline. */
+    color: var(--gold-muted) !important;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  :global(.neighbour-table .nb-title a:hover) {
+    color: var(--plum) !important;
+  }
+  :global(.neighbour-table .nb-club-tag) {
+    display: inline-block;
+    padding: 3px 8px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  /* All five clubs now share the default `.nb-club-tag` styling
+     (dark ink background, paper text). Per-club tinting removed by
+     request, the abbreviation alone is enough to identify each club. */
+  :global(.neighbour-table .nb-near),
+  :global(.neighbour-table .nb-level) {
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+  .nb-level {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    white-space: nowrap;
+  }
+
+  /* Mobile reflow, table becomes stacked cards.
+     We have to override the table elements' default display (table /
+     table-row-group / table-row) with `display: block`, otherwise
+     `display: grid` on <tr> is silently ignored, the row stays a
+     table-row inside a table-row-group, layout doesn't change. */
+  @media (max-width: 720px) {
+    :global(.neighbour-table-wrap) { overflow-x: visible; }
+    :global(.neighbour-table),
+    :global(.neighbour-table thead),
+    :global(.neighbour-table tbody),
+    :global(.neighbour-table tr),
+    :global(.neighbour-table td) {
+      display: block;
+      width: auto;
+    }
+    :global(.neighbour-table thead) { display: none; }
+    :global(.neighbour-table tbody tr) {
+      display: grid;
+      grid-template-columns: auto auto 1fr;
+      column-gap: 12px;
+      row-gap: 4px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--rule);
+      align-items: baseline;
+    }
+    :global(.neighbour-table td) { padding: 0; border: 0; }
+    :global(.neighbour-table .nb-date) {
+      grid-column: 1; grid-row: 1;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    :global(.neighbour-table .nb-club) {
+      grid-column: 2; grid-row: 1;
+      justify-self: start;
+    }
+    :global(.neighbour-table .nb-level) {
+      grid-column: 3; grid-row: 1;
+      justify-self: end;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    :global(.neighbour-table .nb-title) {
+      grid-column: 1 / -1; grid-row: 2;
+      padding: 6px 0 2px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+    :global(.neighbour-table .nb-near) {
+      grid-column: 1 / -1; grid-row: 3;
+      font-size: 13px;
+    }
+  }
+
+  /* Loading state (shown until /api/neighbour-events resolves) */
+  .neighbour-loading {
+    max-width: var(--max-w);
+    margin: 0 auto 18px;
+    padding: 14px var(--pad-x);
+  }
+  .neighbour-loading-note {
+    margin: 0;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .loading-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--plum);
+    border-radius: 50%;
+    margin-right: 8px;
+    transform: translateY(-1px);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+  }
+
+  /* Fallback (no live events), club card list */
+  .neighbour-fallback-note {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+  }
+  .neighbour-club-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .neighbour-club-list li { border-bottom: 1px solid var(--rule); }
+  .neighbour-club-list a {
+    display: grid;
+    grid-template-columns: 80px 1fr auto auto;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 6px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--paper);
+    transition: background .18s ease, padding-left .18s ease;
+  }
+  .neighbour-club-list a:hover { background: var(--paper-2); padding-left: 14px; }
+  .neighbour-club-abbr {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--navy);
+  }
+  .neighbour-club-name { font-weight: 500; }
+  .neighbour-club-region {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .neighbour-club-arrow { color: var(--ink-mute); font-family: var(--ff-mono); }
+  .neighbour-club-list a:hover .neighbour-club-arrow { color: var(--plum); }
+  @media (max-width: 600px) {
+    .neighbour-club-list a {
+      grid-template-columns: 1fr auto;
+      gap: 6px 12px;
+    }
+    .neighbour-club-abbr { grid-column: 1; }
+    .neighbour-club-arrow { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+    .neighbour-club-name { grid-column: 1; }
+    .neighbour-club-region { grid-column: 1 / -1; }
+  }
+</style>

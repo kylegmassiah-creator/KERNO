@@ -1,0 +1,161 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { marked } from 'marked';
+// All copy on this page lives in src/data/about-text.json so the
+// committee can edit every word via the CMS (Site settings → About
+// page text). The page reads the JSON and renders into the same visual
+// layout. Body fields are rendered as full markdown (paragraphs +
+// inline links/bold).
+import text from '../data/about-text.json';
+
+marked.setOptions({ gfm: true, breaks: false });
+const md = (s: string) => marked.parse(s ?? '');
+---
+<Layout
+  title="About, Cornwall Orienteering Club"
+  description="Cornwall Orienteering Club is a small British Orienteering club covering Cornwall, Cornwall, Cornwall, Cornwall and Cornwall."
+>
+
+<main id="main">
+
+  <PageHero
+    page="about"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+    lede={text.hero.lede}
+  />
+
+  <section class="info-block">
+    <div class="info-wrap text-cols">
+      <div>
+        <p class="eyebrow">{text.whatWeDo.eyebrow}</p>
+        <h2>{text.whatWeDo.heading}</h2>
+        <div class="md-body" set:html={md(text.whatWeDo.body)} />
+      </div>
+      <div>
+        <p class="eyebrow">{text.whereWeCover.eyebrow}</p>
+        <h2>{text.whereWeCover.heading}</h2>
+        <div class="md-body" set:html={md(text.whereWeCover.body)} />
+      </div>
+    </div>
+  </section>
+
+  <section class="info-block alt">
+    <div class="info-wrap">
+      <p class="eyebrow">{text.committee.eyebrow}</p>
+      <h2>{text.committee.heading}</h2>
+      <div class="md-body committee-intro" set:html={md(text.committee.body)} />
+      <p class="committee-cta">
+        <a class="btn btn-primary" href={text.committee.ctaUrl}>{text.committee.ctaLabel} <span class="arrow">→</span></a>
+      </p>
+    </div>
+  </section>
+
+  <section class="info-block">
+    <div class="info-wrap text-cols">
+      <div>
+        <p class="eyebrow">{text.membership.eyebrow}</p>
+        <h2>{text.membership.heading}</h2>
+        <div class="md-body" set:html={md(text.membership.body)} />
+        <p><a class="btn btn-primary" href={text.membership.ctaUrl}>{text.membership.ctaLabel} <span class="arrow">→</span></a></p>
+      </div>
+      <div>
+        <p class="eyebrow">{text.firstTime.eyebrow}</p>
+        <h2>{text.firstTime.heading}</h2>
+        <div class="md-body" set:html={md(text.firstTime.body)} />
+        <p><a class="btn btn-ghost" href={text.firstTime.ctaUrl}>{text.firstTime.ctaLabel} <span class="arrow">→</span></a></p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+    max-width: 24ch;
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 64ch;
+    margin: 0;
+  }
+
+  .info-block { padding: clamp(48px, 5vw, 80px) var(--pad-x); }
+  .info-block.alt { background: var(--paper-2); }
+  .info-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .info-block .eyebrow { color: var(--gold-muted); margin-bottom: 14px; }
+  .info-block .eyebrow::before { background: var(--plum); }
+  .info-block h2 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(26px, 3vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 48, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 18px 0;
+    max-width: 22ch;
+  }
+  .info-block p,
+  .info-block :global(.md-body p) {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin: 0 0 14px 0;
+  }
+  .info-block a,
+  .info-block :global(.md-body a) {
+    color: var(--navy);
+    text-decoration: underline;
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    font-weight: 500;
+    transition: color .18s ease, text-decoration-color .18s ease;
+  }
+  .info-block a:hover,
+  .info-block a:focus-visible,
+  .info-block :global(.md-body a:hover),
+  .info-block :global(.md-body a:focus-visible) {
+    color: var(--plum);
+    text-decoration-color: var(--plum);
+  }
+  .info-block strong,
+  .info-block :global(.md-body strong) { color: var(--ink); font-weight: 500; }
+
+  .text-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(32px, 5vw, 64px);
+    align-items: start;
+  }
+  @media (max-width: 720px) {
+    .text-cols { grid-template-columns: 1fr; }
+  }
+
+  .committee-intro {
+    max-width: 70ch;
+    margin-bottom: 24px;
+  }
+</style>

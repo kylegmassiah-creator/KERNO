@@ -1,0 +1,194 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+import text from '../data/information-text.json';
+
+// Read all info pages and group by section
+const allPages = (await getCollection('infoPages'))
+  .filter(p => !p.data.draft)
+  .sort((a, b) => (a.data.order ?? 99) - (b.data.order ?? 99));
+
+// Section labels and blurbs come from the CMS-editable JSON so the
+// committee can rewrite without touching code. The key order here is
+// what controls section ordering on the page.
+const sectionKeys = ['governance', 'safety', 'participation', 'members', 'tips', 'admin'] as const;
+const sections = sectionKeys.map(key => ({
+  key,
+  label: text.sectionLabels[key],
+  blurb: text.sectionBlurbs[key],
+}));
+
+// Top-level club pages always shown at the top (also CMS-editable).
+const topLevel = text.topLevel.items;
+
+// Hero lede may contain markdown links (e.g. the committee link).
+marked.setOptions({ gfm: true, breaks: false });
+const heroLedeHtml = marked.parseInline(text.hero.lede ?? '');
+---
+<Layout
+  title="Information, Cornwall Orienteering Club"
+  description="Club policies, governance, members' resources and other useful information."
+>
+
+<main id="main">
+
+  <PageHero
+    page="information"
+    eyebrow={text.hero.eyebrow}
+    heading={text.hero.heading}
+  >
+    <p class="page-lede rise d-3" set:html={heroLedeHtml}></p>
+  </PageHero>
+
+  <section class="info-hub">
+    <div class="info-hub-wrap">
+
+      <div class="hub-section">
+        <p class="eyebrow">{text.topLevel.eyebrow}</p>
+        <ul class="hub-grid">
+          {topLevel.map(item => (
+            <li>
+              <a class="hub-card" href={item.href}>
+                <h2>{item.title}</h2>
+                <p>{item.desc}</p>
+                <span class="hub-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {sections.map(section => {
+        const pages = allPages.filter(p => p.data.section === section.key);
+        if (pages.length === 0) return null;
+        return (
+          <div class="hub-section">
+            <p class="eyebrow">{section.label}</p>
+            <p class="section-blurb">{section.blurb}</p>
+            <ul class="hub-grid">
+              {pages.map(page => (
+                <li>
+                  <a class="hub-card" href={`/information/${page.id}`}>
+                    <h2>{page.data.title}</h2>
+                    <p>{page.data.summary}</p>
+                    <span class="hub-arrow" aria-hidden="true">→</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+
+    </div>
+  </section>
+
+</main>
+
+</Layout>
+
+<style>
+  .page-hero {
+    background: var(--paper-2);
+    border-bottom: 1px solid var(--rule);
+    padding: clamp(40px, 5vw, 80px) var(--pad-x) clamp(40px, 4vw, 64px);
+  }
+  .page-hero-wrap { max-width: var(--max-w); margin: 0 auto; }
+  .page-hero .eyebrow { color: var(--gold-muted); margin-bottom: 18px; }
+  .page-hero .eyebrow::before { background: var(--plum); }
+  .page-hero h1 {
+    font-family: var(--ff-display);
+    font-weight: 400;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 144, "SOFT" 20;
+    margin: 0 0 20px 0;
+    color: var(--ink);
+  }
+  .page-lede {
+    font-size: clamp(16px, 1.3vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 60ch;
+    margin: 0;
+  }
+  .page-lede a { color: var(--navy); text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+  .page-lede a:hover { color: var(--plum); }
+
+  .info-hub { padding: clamp(40px, 5vw, 64px) var(--pad-x); }
+  .info-hub-wrap { max-width: var(--max-w); margin: 0 auto; }
+
+  .hub-section { margin-bottom: 56px; }
+  .hub-section:last-child { margin-bottom: 0; }
+  .hub-section .eyebrow {
+    color: var(--gold-muted);
+    margin-bottom: 8px;
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  /* Hub-section eyebrows now inherit the outlined orienteering-start
+     triangle from the global .eyebrow::before rule (Layout.astro). */
+  .section-blurb {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 18px 0;
+    max-width: 60ch;
+  }
+
+  .hub-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .hub-card {
+    display: block;
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    padding: 20px 24px 22px;
+    color: var(--ink);
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+    height: 100%;
+  }
+  .hub-card:hover {
+    background: var(--paper-2);
+    border-color: var(--rule-2);
+    transform: translateY(-2px);
+  }
+  .hub-card h2 {
+    font-family: var(--ff-display);
+    font-weight: 500;
+    font-size: 18px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 36, "SOFT" 20;
+    color: var(--ink);
+    margin: 0 0 6px 0;
+  }
+  .hub-card:hover h2 { color: var(--navy); }
+  .hub-card p {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+  .hub-arrow {
+    position: absolute;
+    top: 20px; right: 24px;
+    font-family: var(--ff-mono);
+    font-size: 14px;
+    color: var(--ink-mute);
+    transition: color .18s, transform .18s;
+  }
+  .hub-card:hover .hub-arrow { color: var(--gold-muted); transform: translateX(4px); }
+</style>

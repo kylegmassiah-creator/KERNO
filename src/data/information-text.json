@@ -1,0 +1,35 @@
+{
+  "_comment": "Text for the /information hub page. Edited via the CMS at /admin → Site settings → Information page text. The links to specific info-pages below are pulled from the Info Pages content collection automatically (grouped by section).",
+  "hero": {
+    "eyebrow": "Information",
+    "heading": "Everything else.",
+    "lede": "Constitution, policies, safeguarding, insurance, members' resources and other useful odds and ends. If you're looking for something specific and can't find it here, the [committee](/contacts) can usually point you in the right direction."
+  },
+  "topLevel": {
+    "eyebrow": "Around the site",
+    "items": [
+      { "title": "About KERNO",              "href": "/about",       "desc": "What we do, where we cover, who runs it." },
+      { "title": "Membership",             "href": "/membership",  "desc": "How to join, current fees, what you get." },
+      { "title": "Contact the committee",  "href": "/contacts",    "desc": "Who to ask for what." },
+      { "title": "Newcomers' guide",       "href": "/newcomers",   "desc": "Never tried orienteering? Start here." },
+      { "title": "Training",               "href": "/training",    "desc": "Coaching and skills sessions." },
+      { "title": "Map library",            "href": "/maps",        "desc": "Every venue we currently use." }
+    ]
+  },
+  "sectionBlurbs": {
+    "governance":    "How the club is constituted and the rules we run by.",
+    "safety":        "Safeguarding, insurance, and event-day safety procedures.",
+    "participation": "Anytime orienteering, training, and getting involved beyond events.",
+    "members":       "Newsletter, rankings, trophies and other member-only items.",
+    "tips":          "How-to guides, organiser tools, and useful third-party software.",
+    "admin":         "Expense forms and other administrative paperwork."
+  },
+  "sectionLabels": {
+    "governance":    "Governance",
+    "safety":        "Safety",
+    "participation": "Participation",
+    "members":       "Members' resources",
+    "tips":          "Hints and tips",
+    "admin":         "Admin"
+  }
+}

@@ -1,0 +1,223 @@
+---
+// /events/{slug}/report - separate page for the post-event report.
+//
+// Only generated when the event has a non-empty `report` field in its
+// frontmatter (i.e. the committee has filled the markdown widget in the
+// CMS). Visitors reach this page via the "Report" button in the Results
+// section of the event detail page.
+//
+// The report content is stored as a markdown string in the event's
+// frontmatter, so it can't use Astro's built-in Content rendering (which
+// only applies to the body of a .md file). Instead we render the string
+// to HTML at build time using `marked` and inject it inside a prose
+// container that inherits the site's typography.
+
+import Layout from '../../../layouts/Layout.astro';
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+
+export async function getStaticPaths() {
+  const events = await getCollection('events');
+  return events
+    .filter(event => !event.data.hidden)
+    .filter(event => typeof event.data.report === 'string' && event.data.report.trim().length > 0)
+    .map(event => ({
+      params: { slug: event.id },
+      props: { event },
+    }));
+}
+
+const { event } = Astro.props;
+
+// Render the markdown string to HTML. `gfm: true` enables GitHub-flavoured
+// markdown (tables, autolinks, task lists) which matches what the Decap
+// markdown widget produces. `breaks: true` turns single newlines into <br>
+// so committee members can write naturally without worrying about
+// double-spacing every line.
+marked.setOptions({ gfm: true, breaks: true });
+const reportHtml = marked.parse(event.data.report ?? '');
+
+// ─────── Date formatter for the sub-heading
+const fmtFullDate = (d: Date) => new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London'
+}).format(d).replace(',', '');
+
+const pageTitle = `${event.data.title} - Report`;
+const pageDesc = `Post-event report for ${event.data.title}, ${fmtFullDate(event.data.date)}.`;
+---
+
+<Layout title={pageTitle} description={pageDesc}>
+  <section class="report-hero">
+    <div class="report-hero-wrap">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <a href="/events">Events</a>
+        <span aria-hidden="true">›</span>
+        <a href={`/events/${event.id}`}>{event.data.title}</a>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page">Report</span>
+      </nav>
+      <p class="eyebrow">Event report</p>
+      <h1>{event.data.title}</h1>
+      <p class="report-meta">{fmtFullDate(event.data.date)} · {event.data.location}</p>
+    </div>
+  </section>
+
+  <section class="report-body">
+    <div class="report-body-wrap">
+      <article class="prose" set:html={reportHtml}></article>
+
+      <div class="report-back">
+        <a href={`/events/${event.id}`} class="back-link">
+          <span aria-hidden="true">←</span>
+          <span>Back to event details</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<style>
+  .report-hero {
+    background: var(--ink);
+    color: var(--paper);
+    padding: clamp(40px, 7vw, 80px) 0 clamp(28px, 5vw, 48px);
+  }
+  .report-hero-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 4vw, 48px);
+  }
+  .crumbs {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    margin-bottom: 24px;
+    color: var(--paper);
+    opacity: 0.7;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .crumbs a {
+    color: var(--paper);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+  .crumbs a:hover { border-bottom-color: var(--paper); }
+  .crumbs [aria-current="page"] { color: var(--gold); }
+  .eyebrow {
+    font-family: var(--ff-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 12px;
+  }
+  .report-hero h1 {
+    font-size: clamp(28px, 4.5vw, 44px);
+    line-height: 1.1;
+    margin: 0 0 12px;
+    color: var(--paper);
+  }
+  .report-meta {
+    margin: 0;
+    color: var(--paper);
+    opacity: 0.85;
+    font-size: 16px;
+  }
+
+  .report-body {
+    padding: clamp(36px, 6vw, 72px) 0;
+    background: var(--paper);
+  }
+  .report-body-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 4vw, 48px);
+  }
+
+  /* Render the marked-generated HTML with the site's prose styling. */
+  .prose :global(h1),
+  .prose :global(h2),
+  .prose :global(h3) {
+    font-family: var(--ff-display, var(--ff-body));
+    color: var(--ink);
+    line-height: 1.2;
+    margin-top: 1.8em;
+    margin-bottom: 0.5em;
+  }
+  .prose :global(h2) { font-size: 24px; }
+  .prose :global(h3) { font-size: 19px; }
+  .prose :global(p) {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--ink);
+    margin: 0 0 1.2em;
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--ink);
+    padding-left: 1.4em;
+    margin: 0 0 1.2em;
+  }
+  .prose :global(li) { margin-bottom: 0.4em; }
+  .prose :global(a) {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--magenta, currentColor);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+  .prose :global(a:hover) { text-decoration-color: var(--ink); }
+  .prose :global(blockquote) {
+    border-left: 3px solid var(--magenta, var(--ink));
+    margin: 1.4em 0;
+    padding: 0.2em 0 0.2em 1.2em;
+    color: var(--ink);
+    opacity: 0.9;
+  }
+  .prose :global(img) {
+    max-width: 100%;
+    height: auto;
+    margin: 1.4em 0;
+    border-radius: 4px;
+  }
+  .prose :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--rule, #ddd);
+    margin: 2em 0;
+  }
+  .prose :global(strong) { color: var(--ink); }
+  .prose :global(em) { font-style: italic; }
+  .prose :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.4em 0;
+    font-size: 15px;
+  }
+  .prose :global(th),
+  .prose :global(td) {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--rule, #ddd);
+  }
+  .prose :global(th) { font-weight: 600; }
+
+  .report-back { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--rule, #ddd); }
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--ff-mono);
+    font-size: 14px;
+    color: var(--ink);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .back-link:hover { background: var(--ink); color: var(--paper); }
+</style>

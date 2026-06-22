@@ -1,0 +1,220 @@
+---
+// Decap CMS admin page.
+//
+// This is the Astro-templated version of what used to be a static
+// /public/admin/index.html. Moving it here lets us inject the Google
+// Maps API key into the page so the custom google-map Decap widget
+// can use it. Same role-filter bootstrap as before - see the inline
+// commentary below for details.
+//
+// If you ever want to drop the custom Google Maps pin-picker and
+// revert to Decap's built-in Leaflet `widget: "map"`:
+//   1. Remove the two <script> lines at the bottom of <body> that
+//      reference google-map-widget.js and KERNO_ADMIN_GOOGLE_MAPS_KEY
+//   2. Remove the `widget: "google-map"` field from config.yml
+// The original Leaflet pin-picker keeps working untouched.
+
+// Read from the PUBLIC_ env var because the existing public maps use
+// the same key anyway. /admin is gated by Netlify Identity but the key
+// is restricted to KERNO domains in Google Cloud Console - that's the
+// real protection. Empty fallback so the build doesn't error when the
+// var isn't set.
+const _adminGoogleMapsKey = import.meta.env.PUBLIC_GOOGLE_MAPS_API_KEY;
+const ADMIN_GOOGLE_MAPS_KEY =
+  typeof _adminGoogleMapsKey === 'string' ? _adminGoogleMapsKey : '';
+---
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KERNO admin</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/cornwall-logo.png" />
+  <style>
+    .club-no-access {
+      max-width: 540px;
+      margin: 80px auto;
+      padding: 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: #000000;
+      line-height: 1.5;
+    }
+    .club-no-access h1 { font-size: 24px; margin: 0 0 12px; }
+    .club-no-access p  { color: #4a4a4a; margin: 0 0 12px; }
+    .club-no-access a  { color: #000000; }
+    .club-no-access button {
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: #000000;
+      color: #fff;
+      border: 0;
+      cursor: pointer;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- IMPORTANT: every <script> tag below uses `is:inline`. Without it,
+       Astro processes script tags as ES modules (deferred, CORS-checked),
+       which (a) makes the inline role-filter script run BEFORE decap-cms.js
+       has loaded ("CMS is not defined" → blank page), and (b) triggers
+       CORS rejection on the Netlify Identity widget. Plain `is:inline`
+       scripts execute synchronously in document order - exactly what we
+       need to match the original static /public/admin/index.html behaviour. -->
+
+  <!-- Don't let Decap auto-init: we need to read the user's roles
+       before deciding which collections to show them. -->
+  <script is:inline>window.CMS_MANUAL_INIT = true;</script>
+
+  <!-- Google Maps API key for the custom google-map widget. Templated
+       by Astro at build time from PUBLIC_GOOGLE_MAPS_API_KEY. If unset,
+       google-map-widget.js detects the empty value and disables itself
+       so the CMS keeps working with only the built-in Leaflet picker. -->
+  <script define:vars={{ key: ADMIN_GOOGLE_MAPS_KEY }} is:inline>
+    window.KERNO_ADMIN_GOOGLE_MAPS_KEY = key || '';
+  </script>
+
+  <!-- Netlify Identity widget - required for the login flow. -->
+  <script is:inline src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+
+  <!-- YAML parser so we can read /admin/config.yml at runtime and
+       hand a filtered version to Decap. ~50KB, gzipped much less. -->
+  <script is:inline src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+  <!-- Decap CMS itself. -->
+  <script is:inline src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+
+  <!-- Custom Google Maps pin-picker widget. Adds the `widget: "google-map"`
+       option to Decap. Polls for window.CMS so it doesn't race the
+       Decap bundle's load. The `is:inline` directive tells Astro to
+       leave the tag alone and not try to bundle the public/ file. -->
+  <script is:inline src="/admin/google-map-widget.js"></script>
+
+  <script is:inline>
+  /* ────────────────────────────────────────────────────────────────
+     KERNO role-based collection access
+     ────────────────────────────────────────────────────────────────
+     Each Netlify Identity user can have one or more roles assigned
+     in their user_metadata. This script reads those roles on login
+     and starts the CMS with a config that only contains the
+     collections the user is allowed to edit.
+
+     Roles → collections map:
+       admin          → everything (incl. site settings)
+       events         → /events
+       news           → /news
+       maps           → /maps
+       info           → /information (info pages)
+       announcements  → homepage banners
+
+     A user with no roles assigned sees a "no access yet" page.
+     A user with multiple roles sees the union of their collections.
+
+     This is UI-level gating. A determined user with browser dev tools
+     could bypass it. KERNO's committee model is trust-based, so that's
+     acceptable; if stricter enforcement is ever needed, we'd move to
+     a CMS with backend RBAC.
+     ──────────────────────────────────────────────────────────────── */
+
+  const ROLE_TO_COLLECTIONS = {
+    admin:         null,                    // null = sees all collections
+    events:        ['events'],
+    news:          ['news'],
+    maps:          ['maps'],
+    info:          ['infoPages'],
+    announcements: ['announcements'],
+    videos:        ['videos'],
+  };
+
+  // Site-wide settings (page hero photos etc) - admins only.
+  const ADMIN_ONLY = new Set(['site-settings']);
+
+  function allowedCollectionsFor(roles) {
+    if (!Array.isArray(roles) || roles.length === 0) return [];
+    if (roles.includes('admin')) return null;  // sentinel for "all"
+    const allowed = new Set();
+    for (const role of roles) {
+      const cols = ROLE_TO_COLLECTIONS[role];
+      if (cols === null) return null;          // any role mapped to all
+      if (Array.isArray(cols)) cols.forEach(c => allowed.add(c));
+    }
+    return [...allowed];
+  }
+
+  function filterConfig(config, roles) {
+    const allowed = allowedCollectionsFor(roles);
+    if (allowed === null) return config;       // admin / all access
+    const filtered = JSON.parse(JSON.stringify(config));
+    filtered.collections = filtered.collections.filter(c => {
+      if (ADMIN_ONLY.has(c.name)) return false;
+      return allowed.includes(c.name);
+    });
+    return filtered;
+  }
+
+  function showNoAccessMessage() {
+    document.body.innerHTML = `
+      <div class="club-no-access">
+        <h1>No collections assigned to your account</h1>
+        <p>You're logged in, but the Secretary hasn't yet granted you
+           permission to edit any specific section of the site (Events,
+           News, Maps, Information pages or Announcements).</p>
+        <p>Drop them an email and they'll set this up in a couple of
+           minutes from the Netlify dashboard.</p>
+        <button onclick="netlifyIdentity.logout(); location.reload();">
+          Log out and try a different account
+        </button>
+      </div>
+    `;
+  }
+
+  function startCMS(user) {
+    fetch('/admin/config.yml', { cache: 'no-store' })
+      .then(r => r.text())
+      .then(yamlText => {
+        const config = jsyaml.load(yamlText);
+        // Check both metadata locations. Netlify's built-in "Roles"
+        // field in the Identity admin UI writes to app_metadata.roles
+        // (admin-only, more secure). user_metadata.roles is editable
+        // by the user themselves. Either source is fine for our use.
+        const appRoles  = (user && user.app_metadata  && user.app_metadata.roles)  || [];
+        const userRoles = (user && user.user_metadata && user.user_metadata.roles) || [];
+        const roles = [...new Set([...appRoles, ...userRoles])];
+        const filtered = filterConfig(config, roles);
+
+        if (filtered.collections.length === 0) {
+          showNoAccessMessage();
+          return;
+        }
+        // Hand Decap a complete config (load_config_file:false stops
+        // it re-fetching config.yml and overwriting our filtered one).
+        filtered.load_config_file = false;
+        CMS.init({ config: filtered });
+      })
+      .catch(err => {
+        console.error('[KERNO admin] role-filter bootstrap failed:', err);
+        // Fall back so people aren't locked out by a runtime error.
+        CMS.init();
+      });
+  }
+
+  if (window.netlifyIdentity) {
+    netlifyIdentity.on('init', user => {
+      if (user) {
+        startCMS(user);
+      } else {
+        // Show the login modal. After login the 'login' event fires
+        // and we'll start the CMS with the right roles.
+        netlifyIdentity.on('login', startCMS);
+        netlifyIdentity.open();
+      }
+    });
+    netlifyIdentity.on('logout', () => location.reload());
+  } else {
+    // No Identity widget loaded? Init the CMS the default way so the
+    // page doesn't break.
+    CMS.init();
+  }
+  </script>
+</body>
+</html>

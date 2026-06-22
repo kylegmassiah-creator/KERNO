@@ -1,0 +1,20 @@
+# Minimal Netlify configuration - temporarily stripped down while we
+# diagnose a search issue. SECRETS_SCAN_OMIT_PATHS is preserved because
+# the build needs it to skip mirrored 3rd-party HTML in public/results-archive.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  SECRETS_SCAN_OMIT_PATHS = "public/results-archive/**,dist/results-archive/**"
+
+# Friendly URL for the neighbouring-clubs proxy. The function lives at
+# /.netlify/functions/neighbour-events; this redirect lets the page call
+# /api/neighbour-events instead.
+[[redirects]]
+  from = "/api/neighbour-events"
+  to   = "/.netlify/functions/neighbour-events"
+  status = 200

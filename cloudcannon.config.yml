@@ -17,6 +17,9 @@
 # interfere with each other.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Dates are entered and shown in UK time (not UTC).
+timezone: Europe/London
+
 # How uploaded images are stored and how their URLs are formed.
 #   static: public   -> the "public" folder is the site's web root, so a file
 #     saved to public/assets/uploads/x.jpg is served at /assets/uploads/x.jpg,
@@ -55,6 +58,127 @@ collections_config:
       uploads: public/assets/uploads/events
     create:
       path: '[relative_base_path]/{title|slugify}.md'
+    # Field labels, controls and help text for the Event editor. These make
+    # every field appear with a friendly name and hint, proper dropdowns for
+    # Format/Level, on/off toggles for Hide/Cancelled, and a paste-coordinates
+    # box for the venue location (CloudCannon has no drag-a-pin map, so
+    # coordinates are pasted from Google Maps).
+    _inputs:
+      title:
+        type: text
+        label: Event title
+        comment: Short name, no format suffix. e.g. "Idless Woods"
+      date:
+        type: datetime
+        label: Event date
+      startTime:
+        type: text
+        label: Last start time
+        comment: The cut-off after which competitors can no longer start. e.g. "10:30am"
+      entryCloseDate:
+        type: datetime
+        label: Entry close date / time
+        comment: When entries close. Drives the switch from "upcoming" to "results".
+      location:
+        type: text
+        label: Location (short, for cards)
+        comment: e.g. "Truro"
+      venue:
+        type: text
+        label: Venue
+        comment: Specific place, e.g. "Idless Woods car park"
+      postcode:
+        type: text
+        label: Postcode
+      coordsPaste:
+        type: text
+        label: Venue coordinates
+        comment: 'Paste from Google Maps: right-click the venue, click the numbers at the top (e.g. 50.21545, -5.28472), paste here.'
+      what3words:
+        type: text
+        label: what3words
+        comment: e.g. typically.capacity.skips (no leading slashes)
+      gridRef:
+        type: text
+        label: OS grid reference
+        comment: e.g. SW848335
+      format:
+        type: select
+        label: Format
+        options:
+          values:
+            - Standard
+            - Score
+            - Urban
+            - Urban Score
+            - Street-O
+            - Snook-O
+            - Sprint
+            - Night-O
+            - Regional
+            - MTBO
+            - Training
+      level:
+        type: select
+        label: Event level
+        options:
+          values:
+            - local
+            - regional
+            - national
+            - major
+      series:
+        type: text
+        label: Series name
+        comment: Optional series this event belongs to, e.g. "May Street-O"
+      bofEventNumber:
+        type: text
+        label: BOF event number
+        comment: British Orienteering event ID, e.g. 87374. Enter "TBC" if not assigned yet.
+      planner:
+        type: text
+        label: Planner
+        comment: Designs the courses. e.g. "Richard Edwards (KERNO)"
+      organiser:
+        type: text
+        label: Organiser
+        comment: Runs the event on the day. e.g. "Hannah Dabinett (KERNO)"
+      entryFee:
+        type: text
+        label: Entry fee
+        comment: Free text, e.g. "From £6" or "£6 / £8 pair"
+      siEntriesUrl:
+        type: url
+        label: SI Entries URL
+        comment: Direct link to this event's entry form on sientries.co.uk
+      summary:
+        type: text
+        label: Card subtitle
+        comment: 1-line subtitle shown on cards, e.g. "Forest event, Truro, Local level"
+      description:
+        type: textarea
+        label: Hero description
+        comment: 1-2 sentences for the homepage featured-event card. Optional.
+      heroImage:
+        type: image
+        label: Hero photo
+        comment: Optional banner photo shown across the top of the event page.
+      heroImageAlt:
+        type: text
+        label: Hero photo alt text
+        comment: Short description of the photo for screen readers.
+      cancelled:
+        type: switch
+        label: Event cancelled
+        comment: Tick if the event was called off. It stays listed, marked "Cancelled".
+      hidden:
+        type: switch
+        label: Hide from public site
+        comment: Removes this event from every public page (homepage, list, calendar) without deleting it. Use for test entries or events not ready yet.
+      notes:
+        type: textarea
+        label: Committee notes
+        comment: Private notes, never shown on the public site.
 
   news:
     path: src/cornwall-content/news

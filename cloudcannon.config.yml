@@ -1,0 +1,30 @@
+paths:
+  static: public
+  uploads: public/assets/uploads
+timezone: Europe/London
+markdown:
+  engine: commonmark
+  options:
+    gfm: true
+collections_config:
+  pages:
+    path: src/pages
+    icon: wysiwyg
+  source:
+    path: ''
+    icon: package_2
+  cornwall_events:
+    path: src/cornwall-content/events
+    icon: call_end
+  cornwall_info_pages:
+    path: src/cornwall-content/info-pages
+    icon: contact_page
+  cornwall_maps:
+    path: src/cornwall-content/maps
+    icon: call_made
+  cornwall_news:
+    path: src/cornwall-content/news
+    icon: call_end
+  data:
+    path: src/data
+    icon: data_usage

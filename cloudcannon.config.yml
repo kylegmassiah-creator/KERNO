@@ -1,0 +1,140 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CloudCannon configuration for Cornwall Orienteering Club (KERNO)
+#
+# This tells CloudCannon exactly which parts of the site the committee may edit.
+# It maps the Markdown content (events, news, maps, information pages, videos,
+# announcements) and the JSON page-text / settings files as editable collections.
+# It deliberately does NOT expose the Astro page templates in src/pages - those
+# are code, not content, which is why the auto-setup showed the "Needs visual
+# editing" warnings. Only collections listed here appear in CloudCannon.
+#
+# Uploaded photos are organised into per-section folders under
+# public/assets/uploads, so the media gallery stays tidy (and editors can still
+# create their own sub-folders in the File Browser).
+#
+# CloudCannon reads this file from the repo root on every sync. It is separate
+# from public/admin/config.yml (that one is for Decap/Sveltia) - the two do not
+# interfere with each other.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# How uploaded images are stored and how their URLs are formed.
+#   static: public   -> the "public" folder is the site's web root, so a file
+#     saved to public/assets/uploads/x.jpg is served at /assets/uploads/x.jpg,
+#     which matches the image paths the site already uses.
+#   uploads          -> default folder for new uploads (overridden per section
+#     below so each content type gets its own photo folder).
+paths:
+  static: public
+  uploads: public/assets/uploads
+
+# Sidebar grouping.
+collection_groups:
+  - heading: Content
+    collections:
+      - events
+      - news
+      - maps
+      - info_pages
+      - videos
+      - announcements
+  - heading: Page text & settings
+    collections:
+      - site_data
+
+collections_config:
+  events:
+    path: src/cornwall-content/events
+    glob:
+      - '*.md'
+    name: Events
+    icon: event
+    url: '/events/[slug]'
+    _enabled_editors:
+      - content
+    paths:
+      uploads: public/assets/uploads/events
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  news:
+    path: src/cornwall-content/news
+    glob:
+      - '*.md'
+    name: News
+    icon: article
+    url: '/news/[slug]'
+    _enabled_editors:
+      - content
+    paths:
+      uploads: public/assets/uploads/news
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  maps:
+    path: src/cornwall-content/maps
+    glob:
+      - '*.md'
+    name: Maps
+    icon: map
+    url: '/maps/[slug]'
+    _enabled_editors:
+      - content
+    paths:
+      uploads: public/assets/uploads/maps
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  info_pages:
+    path: src/cornwall-content/info-pages
+    glob:
+      - '*.md'
+    name: Information pages
+    icon: description
+    url: '/information/[slug]'
+    _enabled_editors:
+      - content
+    paths:
+      uploads: public/assets/uploads/info-pages
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  videos:
+    path: src/cornwall-content/videos
+    glob:
+      - '*.md'
+    name: Videos
+    icon: videocam
+    _enabled_editors:
+      - content
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  announcements:
+    path: src/cornwall-content/announcements
+    glob:
+      - '*.md'
+    name: Announcements
+    icon: campaign
+    _enabled_editors:
+      - content
+    paths:
+      uploads: public/assets/uploads/announcements
+    create:
+      path: '[relative_base_path]/{title|slugify}.md'
+
+  # The JSON files in src/data hold the wording for each page (homepage text,
+  # about text, membership text, the committee list, hero photos, etc.). They
+  # are editable but fixed in number, so adding / deleting / renaming is off.
+  site_data:
+    path: src/data
+    glob:
+      - '*.json'
+    name: Page text & settings
+    icon: settings
+    _enabled_editors:
+      - data
+    disable_add: true
+    disable_add_folder: true
+    disable_file_actions: true
+    paths:
+      uploads: public/assets/uploads

@@ -1,21 +1,30 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Decap CMS configuration for Cornwall Orienteering Club
+# Sveltia CMS configuration for Cornwall Orienteering Club
 #
-# Edits made in the admin UI commit directly to the GitHub repo via Netlify's
-# Git Gateway. Netlify rebuilds and the live site updates within ~30 seconds.
+# Sveltia CMS is a drop-in successor to Decap/Netlify CMS. It reads this same
+# config.yml. Edits made in the admin UI commit directly to the GitHub repo,
+# the host rebuilds, and the live site updates within ~30 seconds.
 #
-# Committee members log in by email invitation (sent from the Netlify dashboard).
-# No Git knowledge or developer tools required.
+# Login is via GitHub: committee members are invited to the GitHub repo
+# (kylegmassiah-creator/KERNO) with the Write role. Each editor needs a free
+# GitHub account. No Git knowledge or developer tools required day to day.
+#
+# NOTE ON THE SWITCH FROM DECAP:
+#  - Backend changed from git-gateway (Netlify Identity email invites) to the
+#    GitHub backend, because Sveltia does not support the now-deprecated
+#    git-gateway backend.
+#  - editorial_workflow (draft -> ready -> publish) is removed: Sveltia has not
+#    implemented it yet (pre-1.0), so edits publish directly. Per-collection
+#    "draft" tick-boxes still exist on News, Maps and Info pages.
+#  - The custom Google Maps pin-picker (widget: google-map) is replaced by a
+#    plain coordinate text field, because Sveltia does not yet support custom
+#    widgets. The stored data format is unchanged ("lat,lng" string).
 # ─────────────────────────────────────────────────────────────────────────────
 
 backend:
-  name: git-gateway
+  name: github
+  repo: kylegmassiah-creator/KERNO
   branch: main
-  squash_merges: true
-
-# Drafts go through an editorial workflow - Save as draft → Ready → Publish.
-# This lets editors save in-progress edits without publishing them live.
-publish_mode: editorial_workflow
 
 # Where uploaded media (event photos, map images, news heroes) lives in the repo
 media_folder: "public/assets/uploads"
@@ -579,7 +588,7 @@ collections:
     label: "Events"
     label_singular: "Event"
     description: "Upcoming and past events. The site shows events with a future entry close date as 'upcoming' and past ones as 'results'."
-    folder: "src/content/events"
+    folder: "src/cornwall-content/events"
     create: true
     delete: true
     # Slug + list-view summary both use {{fields.date}} (the raw YAML value)
@@ -614,13 +623,13 @@ collections:
       - name: "coordsMethod"
         label: "How are you setting the location?"
         widget: "select"
-        default: "google"
+        default: "paste"
         options:
-          - { label: "Pin on a Google Map (recommended)",                    value: "google" }
-          - { label: "Paste coordinates from Google Maps",                   value: "paste"  }
-        hint: "Pick one. Only fill in the matching field below - the other will be ignored when the page builds."
-      - { name: "coordsGoogle", label: "Google Maps pin", widget: "google-map", required: false, hint: "Use this if you chose 'Pin on a Google Map' above. Click or drag the red marker to set the venue location. The coordinates save automatically." }
-      - { name: "coordsPaste", label: "Coordinates from Google Maps", widget: "string", required: false, hint: "Use this if you chose 'Paste coordinates' above. On Google Maps: right-click the venue, then click the numbers at the top of the menu (e.g. 53.79748, -2.22698). They auto-copy. Paste here." }
+          - { label: "Paste coordinates from Google Maps (recommended)",     value: "paste"  }
+          - { label: "Coordinates entered elsewhere",                        value: "google" }
+        hint: "Leave this on 'Paste coordinates' and fill in the field below. (The old drag-a-pin map picker isn't available in this CMS; pasting the numbers does the same job.)"
+      - { name: "coordsPaste", label: "Venue coordinates", widget: "string", required: false, hint: "On Google Maps: right-click the venue, then click the numbers at the top of the menu (e.g. 50.21545, -5.28472). They auto-copy. Paste them here as 'lat, lng'." }
+      - { name: "coordsGoogle", label: "Coordinates (alternate field)", widget: "string", required: false, hint: "Optional. Only used if the method above is set to 'Coordinates entered elsewhere'. Same 'lat, lng' format as the field above. Most events can leave this blank." }
       - { name: "what3words", label: "what3words", widget: "string", required: false, hint: "Three-word location for parking / event centre, e.g. 'typically.capacity.skips' (no leading slashes)" }
       - { name: "gridRef", label: "OS grid reference", widget: "string", required: false, hint: "e.g. 'SD848335'" }
       - name: "format"
@@ -770,7 +779,7 @@ collections:
     label: "News"
     label_singular: "News article"
     description: "Race reports, club announcements and news."
-    folder: "src/content/news"
+    folder: "src/cornwall-content/news"
     create: true
     delete: true
     slug: "{{slug}}"
@@ -823,7 +832,7 @@ collections:
     label: "Maps"
     label_singular: "Map"
     description: "The map library - every venue KERNO has surveyed."
-    folder: "src/content/maps"
+    folder: "src/cornwall-content/maps"
     create: true
     delete: true
     slug: "{{slug}}"
@@ -873,7 +882,7 @@ collections:
     label: "Announcements"
     label_singular: "Announcement"
     description: "Banner messages on the homepage. Used for last-minute event changes, weather warnings, AGM notices, etc. The banner shows only between the validFrom and validUntil dates."
-    folder: "src/content/announcements"
+    folder: "src/cornwall-content/announcements"
     create: true
     delete: true
     slug: "{{slug}}"
@@ -901,7 +910,7 @@ collections:
     label: "Information pages"
     label_singular: "Information page"
     description: "Sub-pages of the Information hub - privacy, safeguarding, policies, and similar."
-    folder: "src/content/info-pages"
+    folder: "src/cornwall-content/info-pages"
     create: true
     delete: true
     slug: "{{slug}}"
@@ -985,7 +994,7 @@ collections:
     label: "Videos"
     label_singular: "Video"
     description: "Footage hosted on YouTube and embedded on KERNO's site. Each entry just needs a YouTube link - no file upload here; uploads live in our YouTube channel."
-    folder: "src/content/videos"
+    folder: "src/cornwall-content/videos"
     create: true
     delete: true
     slug: "{{slug}}"

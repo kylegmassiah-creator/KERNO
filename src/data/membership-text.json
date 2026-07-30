@@ -3,9 +3,9 @@
   "hero": {
     "eyebrow": "Membership",
     "heading": "Join the club, support the sport.",
-    "lede": "If you plan to orienteer more than a couple of times a year, joining KERNO is a small annual cost that gets you insured, ranked, discounted at events, and contributing to the sport's future.",
+    "lede": "There's no fee to join KERNO itself. Membership is administered by British Orienteering, and joining automatically makes you a member of the South West Orienteering Association (SWOA) too. From January 2026, only British Orienteering members are covered by public liability insurance at events.",
     "primaryCtaLabel": "Join KERNO online",
-    "primaryCtaUrl": "https://www.britishorienteering.org.uk/join_online?ms_club_id=78&ms_assoc_id=5",
+    "primaryCtaUrl": "https://www.britishorienteering.org.uk/join",
     "secondaryCtaLabel": "What you get",
     "secondaryCtaUrl": "#what-you-get"
   },
@@ -23,7 +23,7 @@
       },
       {
         "title": "Ranking points",
-        "body": "Your results count toward the British Orienteering ranking system and the regional NWOA league. You also become eligible for age-class trophies and the club's own awards."
+        "body": "Your results count toward the British Orienteering ranking system and the regional SWOA league. You also become eligible for age-class trophies and the club's own awards."
       },
       {
         "title": "Newsletter and events priority",
@@ -41,21 +41,21 @@
   },
   "threeMemberships": {
     "eyebrow": "Three memberships, one payment",
-    "heading": "KERNO, NWOA and British Orienteering, all included.",
-    "body": "When you join KERNO, you automatically become a member of the South West Orienteering Association and British Orienteering. One annual fee, paid through the British Orienteering join form, covers all three. Senior, Junior and Family rates are shown when you start the application.",
-    "note": "Membership runs to 31 December, joining mid-year still gets you full benefits to year-end. Most members renew automatically each January."
+    "heading": "KERNO, SWOA and British Orienteering in one membership.",
+    "body": "There's no separate KERNO fee; you pay a single British Orienteering membership, which also covers the South West Orienteering Association. Approximate 2026 fees (joining part-way through the year, from 1 May) are: Senior 11 pounds, Young Adult (21-25) 7 pounds, Junior 3 pounds, and Family 26 pounds. Full-year rates are shown on the British Orienteering join form.",
+    "note": "The membership year runs to 31 December. Joining in November or December covers the following year. Most members renew automatically each January."
   },
   "howToJoin": {
     "eyebrow": "How to join",
     "heading": "Two minutes online.",
     "steps": [
-      "**Click the join link.** It takes you to the British Orienteering join form with KERNO already selected as your club.",
-      "**Choose your membership type** (Senior, Junior, or Family) and fill in your details.",
-      "**Pay by card.** Membership runs to 31 December, joining mid-year still gets you full benefits to year-end.",
-      "**You're in.** A confirmation email arrives within a few minutes; we'll add you to the newsletter and members' WhatsApp group."
+      "**Go to the British Orienteering join page.** Membership is administered there on KERNO's behalf.",
+      "**Choose Cornwall Orienteering Club (KERNO)** as your club, then pick your membership type (Senior, Young Adult, Junior or Family).",
+      "**Pay by card.** The membership year runs to 31 December; joining mid-year still covers you to year-end.",
+      "**You're in.** A confirmation email arrives within a few minutes, and you can come along to any event straight away."
     ],
     "ctaLabel": "Start the join form",
-    "ctaUrl": "https://www.britishorienteering.org.uk/join_online?ms_club_id=78&ms_assoc_id=5",
-    "contactNote": "Questions about membership? Get in touch with the Membership Secretary, [Emma Taylor](/contacts), via the contacts page."
+    "ctaUrl": "https://www.britishorienteering.org.uk/join",
+    "contactNote": "Questions about membership? Get in touch with the Membership Secretary, Steve Beech, via the [contacts page](/contacts)."
   }
 }

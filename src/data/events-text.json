@@ -8,7 +8,7 @@
   "neighboursCtaLabel": "Fixtures from neighbouring clubs",
   "neighbours": {
     "eyebrow": "Neighbouring clubs",
-    "intro": "Upcoming events run by orienteering clubs across the wider South West region, including Devon. KERNO members and non-members are welcome to enter; most events accept pre-entry through the usual sign-up sites such as SI Entries, Racesignup and Fabian4. \nFor a national overview see British Orienteering's full event listing →](https://www.britishorienteering.org.uk/event).",
+    "intro": "Upcoming events run by the other orienteering clubs in the South West Orienteering Association (SWOA): Devon, Wimborne, Wessex, Quantock, Bristol (BOK), North Gloucestershire, North Wilts and Sarum. KERNO members and non-members are welcome to enter; most events accept pre-entry through the usual sign-up sites such as SI Entries, Racesignup and Fabian4. \nFor a national overview see British Orienteering's full event listing →](https://www.britishorienteering.org.uk/event).",
     "loadingNote": "Loading upcoming events from British Orienteering…"
   }
 }

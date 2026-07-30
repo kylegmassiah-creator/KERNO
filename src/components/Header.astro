@@ -14,7 +14,7 @@ const navItems: { href: string; label: string; external?: boolean }[] = [
   { href: '/news', label: 'News' },
   { href: '/events', label: 'Fixtures' },
   { href: '/results-archive', label: 'Results' },
-  { href: 'https://www.cornwallorienteering.org.uk/main/about_us/about_us.php', label: 'About Us', external: true },
+  { href: '/about', label: 'About Us' },
 ];
 function isCurrent(href: string): boolean {
   if (href === '/') return path === '/';

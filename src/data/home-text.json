@@ -5,7 +5,7 @@
     "heading": "Orienteering across the woods, moors and coast of *Cornwall*.",
     "lede": "Cornwall Orienteering Club (KERNO) has been promoting the sport across Cornwall since 1982. We run friendly events throughout the year - woodland, parkland, urban and coastal - for everyone from complete beginners to seasoned competitors. You don't need to be a member to take part; pick a course to suit yourself and navigate your way round at your own pace. Newcomers are always welcome, with guidance offered by club members.",
     "ledeCtaLabel": "Join us",
-    "ledeCtaUrl": "https://www.cornwallorienteering.org.uk/main/about_us/membership.php",
+    "ledeCtaUrl": "/membership",
     "primaryCtaLabel": "All upcoming events",
     "primaryCtaUrl": "/events",
     "stats": [
@@ -45,6 +45,6 @@
     "heading": "The adventure sport of finding your way, *at your own pace*.",
     "body": "Orienteering is an adventure sport where you use a map to visit checkpoints. The speed and the route are entirely up to you. It's a sport that rewards quick thinking and spotting the best route between checkpoints - and anyone can have a go, whatever your age or fitness.",
     "ctaLabel": "Read the guide",
-    "ctaUrl": "https://www.cornwallorienteering.org.uk/main/about_us/what_is_o.php"
+    "ctaUrl": "/newcomers"
   }
 }

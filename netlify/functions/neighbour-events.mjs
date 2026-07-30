@@ -2,8 +2,8 @@
  * Netlify Function: /api/neighbour-events
  *
  * Pulls the official British Orienteering open-data fixtures JSON feed,
- * filters for the 5 KERNO-neighbouring clubs (EPOC / SROC / AIRE / SELOC /
- * MDOC), and returns a small structured list for the events page to
+ * filters for KERNO's neighbouring SWOA clubs, and returns a small
+ * structured list for the events page to
  * render into a table.
  *
  * Endpoint: https://www.britishorienteering.org.uk/fullfixturesjson.php
@@ -24,7 +24,16 @@
 // club ID. The fixturesjson.php feed sometimes returns the abbreviation
 // in the `club` field, sometimes a numeric id, sometimes the full club
 // name. We accept any of the three so we don't depend on BOF's choice.
-const CLUBS = [];
+const CLUBS = [
+  { abbr: 'DEVON', bofClubId: 0, fullName: 'Devon Orienteering' },
+  { abbr: 'WIM', bofClubId: 0, fullName: 'Wimborne Orienteers' },
+  { abbr: 'WSX', bofClubId: 0, fullName: 'Wessex Orienteers' },
+  { abbr: 'QO', bofClubId: 0, fullName: 'Quantock Orienteers' },
+  { abbr: 'BOK', bofClubId: 0, fullName: 'Bristol Orienteering Klub' },
+  { abbr: 'NGOC', bofClubId: 0, fullName: 'North Gloucestershire Orienteering Club' },
+  { abbr: 'NWO', bofClubId: 0, fullName: 'North Wilts Orienteers' },
+  { abbr: 'SARUM', bofClubId: 0, fullName: 'Sarum Orienteers' },
+];
 
 const TARGET_ABBRS = new Set(CLUBS.map(c => c.abbr));
 const TARGET_IDS   = new Set(CLUBS.map(c => c.bofClubId));
@@ -57,15 +66,12 @@ function resolveClub(raw) {
 }
 
 /**
- * Per-association feeds. Our 5 clubs span two BOF associations:
- *   NWOA  - North-West Orienteering Association (SROC, SELOC, MDOC)
- *   YHOA  - Yorkshire & Humberside Orienteering Association (AIRE, EPOC)
- * The per-association feed is much smaller than the full national one
- * and tends to return only recent + future fixtures.
+ * Per-association feed. Cornwall (KERNO) and Devon both sit in SWOA, the
+ * South West Orienteering Association, so we pull the SWOA feed, which is
+ * much smaller than the national one and returns recent + future fixtures.
  */
 const FEED_URLS = [
-  'https://www.britishorienteering.org.uk/fixturesjson.php?assoc=NWOA',
-  'https://www.britishorienteering.org.uk/fixturesjson.php?assoc=YHOA',
+  'https://www.britishorienteering.org.uk/fixturesjson.php?assoc=SWOA',
 ];
 
 async function fetchOneFeed(url) {

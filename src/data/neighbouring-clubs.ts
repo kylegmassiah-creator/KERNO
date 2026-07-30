@@ -19,4 +19,13 @@ export interface NeighbourClub {
   bofClubId: number;   // ID inside britishorienteering.org.uk event search
 }
 
-export const neighbouringClubs: NeighbourClub[] = [];
+export const neighbouringClubs: NeighbourClub[] = [
+  { abbr: 'DEVON', name: 'Devon Orienteering', region: 'South West (SWOA)', eventsUrl: 'https://www.devonorienteering.co.uk/events', bofClubId: 0 },
+  { abbr: 'WIM', name: 'Wimborne Orienteers', region: 'South West (SWOA)', eventsUrl: 'https://www.wimborne-orienteers.co.uk/', bofClubId: 0 },
+  { abbr: 'WSX', name: 'Wessex Orienteers', region: 'South West (SWOA)', eventsUrl: 'https://www.wessex-oc.org/', bofClubId: 0 },
+  { abbr: 'QO', name: 'Quantock Orienteers', region: 'South West (SWOA)', eventsUrl: 'https://www.quantockorienteers.co.uk/', bofClubId: 0 },
+  { abbr: 'BOK', name: 'Bristol Orienteering Klub', region: 'South West (SWOA)', eventsUrl: 'https://www.bristolorienteering.org.uk/', bofClubId: 0 },
+  { abbr: 'NGOC', name: 'North Gloucestershire Orienteering Club', region: 'South West (SWOA)', eventsUrl: 'https://www.ngoc.org.uk/', bofClubId: 0 },
+  { abbr: 'NWO', name: 'North Wilts Orienteers', region: 'South West (SWOA)', eventsUrl: 'https://www.northwilts.org.uk/', bofClubId: 0 },
+  { abbr: 'SARUM', name: 'Sarum Orienteers', region: 'South West (SWOA)', eventsUrl: 'https://www.sarumo.co.uk/', bofClubId: 0 },
+];

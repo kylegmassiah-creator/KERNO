@@ -31,6 +31,93 @@ paths:
   uploads: public/assets/uploads
 
 # Sidebar grouping.
+# Reusable item shapes for the list fields (results, attachments, gallery),
+# so the "Add" button on each list gives editors a proper mini-form.
+_structures:
+  results_item:
+    values:
+      - label: Results file
+        icon: description
+        value:
+          label: ""
+          url: ""
+          type: html
+          hidden: false
+        _inputs:
+          label:
+            type: text
+            label: File label
+            comment: e.g. "Full results", "Splits", "RouteGadget"
+          url:
+            type: url
+            label: Results file or URL
+          type:
+            type: select
+            label: File type
+            options:
+              values:
+                - value: html
+                  label: HTML / web page
+                - value: pdf
+                  label: PDF
+                - value: xlsx
+                  label: Excel (.xlsx)
+                - value: csv
+                  label: CSV
+          hidden:
+            type: switch
+            label: Hide this entry from the public site
+  attachment_item:
+    values:
+      - label: Attachment
+        icon: attach_file
+        value:
+          label: ""
+          file: ""
+          type: pdf
+        _inputs:
+          label:
+            type: text
+            label: Label shown to readers
+          file:
+            type: file
+            label: Upload file
+          type:
+            type: select
+            label: File type
+            options:
+              values:
+                - value: pdf
+                  label: PDF
+                - value: docx
+                  label: Word document
+                - value: xlsx
+                  label: Spreadsheet
+                - value: csv
+                  label: CSV
+                - value: image
+                  label: Image
+                - value: other
+                  label: Other
+  gallery_item:
+    values:
+      - label: Photo
+        icon: image
+        value:
+          src: ""
+          alt: ""
+          caption: ""
+        _inputs:
+          src:
+            type: image
+            label: Photo
+          alt:
+            type: text
+            label: Alt text
+          caption:
+            type: text
+            label: Caption
+
 collection_groups:
   - heading: Content
     collections:
@@ -90,6 +177,16 @@ collections_config:
       postcode:
         type: text
         label: Postcode
+      coordsMethod:
+        type: select
+        label: How are you setting the location?
+        comment: Leave on "Paste coordinates" and fill the box below. (The drag-a-pin Google map isn't available here - paste the numbers instead.)
+        options:
+          values:
+            - value: paste
+              label: Paste coordinates from Google Maps (recommended)
+            - value: google
+              label: Coordinates entered elsewhere
       coordsPaste:
         type: text
         label: Venue coordinates
@@ -113,6 +210,7 @@ collections_config:
             - Urban Score
             - Street-O
             - Snook-O
+            - Snook-O/Ratchet
             - Sprint
             - Night-O
             - Regional
@@ -127,6 +225,24 @@ collections_config:
             - regional
             - national
             - major
+      dogsAllowed:
+        type: select
+        label: Dog policy
+        comment: Leave blank if not specified. Otherwise pick how dogs are handled at this event.
+        options:
+          values:
+            - value: "yes"
+              label: Dogs welcome
+            - value: on-lead
+              label: Dogs on lead only
+            - value: "no"
+              label: Dogs not permitted
+            - value: not-recommended
+              label: Not recommended (e.g. urban / Street-O)
+      dogNotes:
+        type: text
+        label: Dog policy - extra notes
+        comment: Optional explanation shown next to the dropdown answer.
       series:
         type: text
         label: Series name
@@ -139,18 +255,33 @@ collections_config:
         type: text
         label: Planner
         comment: Designs the courses. e.g. "Richard Edwards (KERNO)"
+      controller:
+        type: text
+        label: Controller
+        comment: Required for regional and larger events. e.g. "Steve Wilson (KERNO)"
       organiser:
         type: text
         label: Organiser
         comment: Runs the event on the day. e.g. "Hannah Dabinett (KERNO)"
+      seriesOrganiser:
+        type: text
+        label: Series organiser
+        comment: Co-ordinates the multi-event series this event belongs to.
       entryFee:
         type: text
         label: Entry fee
         comment: Free text, e.g. "From £6" or "£6 / £8 pair"
+      capacity:
+        type: number
+        label: Entry cap
+        comment: Optional maximum number of entries.
       siEntriesUrl:
         type: url
         label: SI Entries URL
         comment: Direct link to this event's entry form on sientries.co.uk
+      routeGadgetUrl:
+        type: url
+        label: RouteGadget URL
       summary:
         type: text
         label: Card subtitle
@@ -167,6 +298,60 @@ collections_config:
         type: text
         label: Hero photo alt text
         comment: Short description of the photo for screen readers.
+      results:
+        type: array
+        label: Results files (add after the event)
+        comment: Links to results, splits, RouteGadget etc. Add one row per file.
+        options:
+          structures: _structures.results_item
+      preEventInfo:
+        type: markdown
+        label: Pre-event briefing
+        comment: Shown in a highlighted panel above the event body. What to expect on the day - format, kit, safety reminders. Leave blank if there's nothing to flag.
+      registrationDetails:
+        type: markdown
+        label: Registration and start times
+        comment: Start window, dibber collection, what to do on arrival. Hides automatically once the event is past.
+      registrationDetailsKeepAfter:
+        type: switch
+        label: Keep "Registration and start times" visible after the event
+        comment: Normally OFF - this section hides itself once the event is over. Turn ON only to keep it on the past-event page.
+      directionsAndParking:
+        type: markdown
+        label: Directions and parking
+        comment: Event centre address, what3words, where to park. Hides automatically once the event is past.
+      directionsAndParkingKeepAfter:
+        type: switch
+        label: Keep "Directions and parking" visible after the event
+        comment: Normally OFF - hides itself after the event. Turn ON to keep it visible.
+      entryDetails:
+        type: markdown
+        label: Entry details
+        comment: Fees, SI Entries link, junior age rules, cancellation policy. Hides automatically once the event is past.
+      entryDetailsKeepAfter:
+        type: switch
+        label: Keep "Entry details" visible after the event
+        comment: Normally OFF - hides itself after the event. Turn ON to keep it visible.
+      facilities:
+        type: markdown
+        label: Facilities
+        comment: Toilets, refreshments, changing, indoor space. Hides automatically once the event is past.
+      facilitiesKeepAfter:
+        type: switch
+        label: Keep "Facilities" visible after the event
+        comment: Normally OFF - hides itself after the event. Turn ON to keep it visible.
+      report:
+        type: markdown
+        label: Event report (post-event)
+        comment: Filled in after the event - organiser and planner comments, lost property, photo credits. When set, a "Report" button appears on the event page linking to a dedicated report page.
+      disclaimerOverride:
+        type: switch
+        label: Override the standard disclaimer
+        comment: Leave OFF for normal events (shows the standard British Orienteering insurance notice). Turn ON only to replace it with your own wording below.
+      disclaimer:
+        type: markdown
+        label: Custom disclaimer text
+        comment: Only used when "Override the standard disclaimer" is ON. Otherwise ignored.
       cancelled:
         type: switch
         label: Event cancelled
@@ -179,6 +364,18 @@ collections_config:
         type: textarea
         label: Committee notes
         comment: Private notes, never shown on the public site.
+      attachments:
+        type: array
+        label: File attachments
+        comment: Downloads shown at the bottom of the event page - course details, briefing notes, parking maps.
+        options:
+          structures: _structures.attachment_item
+      gallery:
+        type: array
+        label: Photo gallery (after the event)
+        comment: Photos taken at the event, shown as a grid at the bottom of the page.
+        options:
+          structures: _structures.gallery_item
 
   news:
     path: src/cornwall-content/news
